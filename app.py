@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
+import io
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA
 # ==========================================
-st.set_page_config(page_title="LACOST V9 - Auto", layout="wide")
+st.set_page_config(page_title="LACOST V9 - Autónomo", layout="wide")
 
 st.markdown("""
 <style>
@@ -17,115 +18,160 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CARGA DE ARCHIVOS (Nombres Exactos)
+# 1. DATOS INTEGRADOS (RESPALDO V9)
 # ==========================================
-# AQUÍ ESTÁ EL ARREGLO: Usamos los nombres exactos de tus archivos
-UI_FILE = "V9-BASE.xlsx - UI_CONGIF.csv"   # Nota: Mantenemos tu typo 'CONGIF' para que lo encuentre
-DB_FILE = "V9-BASE.xlsx - Databases.csv"
+# Estos datos se usan si no hay archivos externos. Así la app nunca falla.
+
+DEFAULT_UI = """Section,Sub-Section,Field Label,Data Type,Mandatory,Source / Options
+1. General Info,-,Country,Dropdown,Yes,### TABLE: COUNTRIES(Country)
+1. General Info,-,Currency,Radio,Yes,"USD, Local,### TABLE: COUNTRIES(E/R)"
+1. General Info,-,Contract Start Date,Date,Yes,User imput
+1. General Info,-,Contract End Date,Date,Yes,User imput
+1. General Info,-,Contract Period,Number,Yes,Calculated
+2. Input Costs,-,QA Risk,Dropdown,Yes,### TABLE: QA_RISK (Level)
+2. Input Costs,Servicios,Offering,Dropdown,Yes,### TABLE: Offering(Offering)
+2. Input Costs,Servicios,SLC,Dropdown,Yes,### TABLE: SLC(SLC)
+2. Input Costs,Servicios,USD Unit Cost,Number,Yes,User imput
+2. Input Costs,Servicios,SQty,Number,Yes,User imput
+3. Input Costs,Labor RR/BR,RR/BR,Dropdown,Yes,### TABLE: LABOR(plat,def)
+3. Input Costs,Labor RR/BR,LQty,Number,Yes,User imput
+"""
+
+DEFAULT_DB = """
+### TABLE: COUNTRIES
+Country,Currency,E/R
+Argentina,ARS,1428.95
+Brazil,BRL,5.34
+Chile,CLP,934.70
+Colombia,COP,3775.22
+Ecuador,USD,1.0
+Peru,PEN,3.37
+Mexico,MXN,18.42
+Uruguay,UYU,39.73
+Venezuela,VES,235.28
+
+### TABLE: QA_RISK
+Level,Percentage
+Low,0.02
+Medium,0.05
+High,0.08
+
+### TABLE: Offering
+Offering,L40
+IBM Hardware Resell,6942-1BT
+IBM Support for Red Hat,6948-B73
+IBM Customized Support HW,6942-76V
+IBM Customized Support SW,6942-76W
+Relocation Services,6942-54E
+
+### TABLE: SLC
+Scope,Desc,SLC,UPLF
+no brazil,24X74On-site Response time,M47,1.5
+no brazil,24X7SDOn-site arrival time,M19,1.0
+no brazil,24X76Fix time,M2B,1.6
+Brazil,24X7SDOn-site arrival time,M19,1.0
+Brazil,NStd5x9,NStd5x9,1.0
+Brazil,NStdSBD7x24,NStdSBD7x24,1.278
+
+### TABLE: LABOR
+Scope,Item,Argentina,Brazil,Colombia,Ecuador,Peru
+All,System Z,304504.2,2803.85,2054058.99,991.20,1284.60
+All,Power HE,194856.48,1516.61,540008.96,340.52,505.85
+All,B7 (Senior),40166.28,186.82,126000.0,79.19,216.45
+All,B8 (Spec),65472.90,263.20,147000.0,303.04,518.36
+"""
+
+# ==========================================
+# 2. GESTOR DE CARGA (HÍBRIDO)
+# ==========================================
 
 @st.cache_data
-def load_ui_local():
-    try:
-        # Intentamos leer con el nombre largo
-        df = pd.read_csv(UI_FILE)
-        df.columns = df.columns.str.strip()
-        return df
-    except FileNotFoundError:
-        # Si falla, intentamos nombres alternativos comunes por si acaso
-        try:
-            df = pd.read_csv("UI_CONGIF.csv")
-            return df
-        except:
-            st.error(f"❌ ERROR: No encuentro el archivo '{UI_FILE}' en la carpeta.")
-            st.warning("Asegúrate de haber subido el archivo CSV a GitHub exactamente con ese nombre.")
-            return pd.DataFrame()
+def load_data(ui_file, db_file):
+    # --- 1. PROCESAR UI ---
+    if ui_file:
+        df_ui = pd.read_csv(ui_file)
+    else:
+        # Usar datos integrados
+        df_ui = pd.read_csv(io.StringIO(DEFAULT_UI))
+    
+    # Limpieza headers
+    df_ui.columns = df_ui.columns.str.strip()
 
-@st.cache_data
-def load_db_local():
+    # --- 2. PROCESAR DB ---
     tables = {}
+    current_content = db_file.getvalue().decode("utf-8") if db_file else DEFAULT_DB
+    
+    # Parser manual de tablas ### TABLE:
     current_table = None
     buffer = []
     
-    # Intentar abrir el archivo con el nombre largo
-    try:
-        file_handle = open(DB_FILE, "r", encoding="utf-8")
-    except FileNotFoundError:
-        try:
-            file_handle = open("Databases.csv", "r", encoding="utf-8")
-        except:
-            st.error(f"❌ ERROR: No encuentro el archivo '{DB_FILE}' en la carpeta.")
-            return {}
-
-    try:
-        lines = file_handle.readlines()
-        file_handle.close()
-        
-        for line in lines:
-            line = line.strip()
-            if "### TABLE:" in line:
-                # Guardar tabla previa
-                if current_table and buffer:
-                    # Crear DataFrame
+    for line in current_content.splitlines():
+        line = line.strip()
+        if "### TABLE:" in line:
+            # Guardar anterior
+            if current_table and buffer:
+                try:
+                    # Detectar csv simple
                     header = buffer[0].split(',')
-                    header = [h.strip() for h in header if h.strip()]
-                    
-                    data = []
-                    for row_str in buffer[1:]:
-                        row_vals = row_str.split(',')
-                        if len(row_vals) >= len(header):
-                            data.append(row_vals[:len(header)])
-                            
-                    tables[current_table] = pd.DataFrame(data, columns=header)
-                
-                # Nueva tabla
-                raw_name = line.split("### TABLE:")[1]
-                current_table = raw_name.split('(')[0].strip()
-                buffer = []
-            else:
-                if line and current_table:
-                    buffer.append(line)
-        
-        # Procesar la última tabla
-        if current_table and buffer:
+                    rows = [r.split(',') for r in buffer[1:] if r.strip()]
+                    # Ajustar filas
+                    clean_rows = [r[:len(header)] for r in rows if len(r) >= len(header)]
+                    tables[current_table] = pd.DataFrame(clean_rows, columns=header)
+                except: pass
+            
+            # Nueva tabla
+            raw_name = line.split("### TABLE:")[1]
+            current_table = raw_name.split('(')[0].strip()
+            buffer = []
+        else:
+            if line and current_table:
+                buffer.append(line)
+
+    # Guardar última tabla
+    if current_table and buffer:
+        try:
             header = buffer[0].split(',')
-            header = [h.strip() for h in header if h.strip()]
-            data = [r.split(',')[:len(header)] for r in buffer[1:]]
-            tables[current_table] = pd.DataFrame(data, columns=header)
-            
-        # Conversiones numéricas
-        if 'COUNTRIES' in tables and 'E/R' in tables['COUNTRIES'].columns:
-            tables['COUNTRIES']['E/R'] = pd.to_numeric(tables['COUNTRIES']['E/R'], errors='coerce')
-        if 'SLC' in tables and 'UPLF' in tables['SLC'].columns:
-            tables['SLC']['UPLF'] = pd.to_numeric(tables['SLC']['UPLF'], errors='coerce')
-            
-        return tables
+            rows = [r.split(',') for r in buffer[1:] if r.strip()]
+            clean_rows = [r[:len(header)] for r in rows if len(r) >= len(header)]
+            tables[current_table] = pd.DataFrame(clean_rows, columns=header)
+        except: pass
 
-    except Exception as e:
-        st.error(f"Error procesando Databases: {e}")
-        return {}
+    # Conversiones numéricas críticas
+    if 'COUNTRIES' in tables:
+        tables['COUNTRIES']['E/R'] = pd.to_numeric(tables['COUNTRIES']['E/R'], errors='coerce')
+    if 'SLC' in tables:
+        tables['SLC']['UPLF'] = pd.to_numeric(tables['SLC']['UPLF'], errors='coerce')
+    if 'LABOR' in tables:
+        # Intentar convertir todo a numérico excepto las primeras columnas
+        cols = tables['LABOR'].columns
+        for c in cols:
+            if c not in ['Scope', 'Item', 'Plat', 'Def']:
+                tables['LABOR'][c] = pd.to_numeric(tables['LABOR'][c], errors='coerce')
 
-# Cargar datos
-ui_df = load_ui_local()
-db_tables = load_db_local()
+    return df_ui, tables
 
-if ui_df.empty or not db_tables:
-    st.stop()
+# --- SIDEBAR OPCIONAL ---
+with st.sidebar:
+    st.header("📂 Datos")
+    st.caption("La app ya tiene datos cargados. Si quieres usar tus propios CSV, súbelos aquí:")
+    up_ui = st.file_uploader("UI_CONFIG.csv", type=['csv'])
+    up_db = st.file_uploader("Databases.csv", type=['csv'])
+    st.divider()
+
+# Cargar (Prioridad: Subido > Integrado)
+ui_df, db_tables = load_data(up_ui, up_db)
 
 # ==========================================
-# 2. FUNCIONES LÓGICAS (Parsers)
+# 3. LÓGICA V9 (LOOKUPS)
 # ==========================================
 
 def get_options(source_str, country_context):
     if pd.isna(source_str): return []
     source_str = str(source_str).strip()
     
-    # Caso Lista Manual
     if "### TABLE:" not in source_str:
-        if "," in source_str:
-            return [x.strip() for x in source_str.split(',')]
-        return []
+        return [x.strip() for x in source_str.split(',')] if "," in source_str else []
 
-    # Caso Tabla
     parts = source_str.replace("### TABLE:", "").split('(')
     tbl_name = parts[0].strip()
     col_name = parts[1].replace(')', '').strip() if len(parts) > 1 else None
@@ -133,60 +179,65 @@ def get_options(source_str, country_context):
     if tbl_name not in db_tables: return []
     df = db_tables[tbl_name]
     
-    # Filtro Scope
+    # Scope Logic
     if 'Scope' in df.columns and country_context:
         target = "Brazil" if country_context == "Brazil" else "no brazil"
-        df = df[df['Scope'].str.lower() == target.lower()]
-        
+        # Filtro relajado (contains)
+        df = df[df['Scope'].str.lower().str.contains(target.lower()) | (df['Scope'] == 'All')]
+
     if col_name and col_name in df.columns:
         return df[col_name].unique().tolist()
     
     # Fallback Labor
     if tbl_name == "LABOR":
-        if 'Plat' in df.columns and 'Def' in df.columns:
-            return (df['Plat'] + " - " + df['Def']).unique().tolist()
+        if 'Item' in df.columns: return df['Item'].unique().tolist()
+    
     return []
 
-def get_slc_factor(slc_code, country):
+def get_slc_factor(slc_val, country):
     if 'SLC' not in db_tables: return 1.0
     df = db_tables['SLC']
     target = "Brazil" if country == "Brazil" else "no brazil"
     
-    # Busca columnas posibles
-    cols = ['SLC', 'ID_Desc', 'Desc']
-    actual = next((c for c in cols if c in df.columns), None)
+    # Buscar columna correcta
+    col = next((c for c in ['SLC', 'Desc', 'ID_Desc'] if c in df.columns), None)
+    if not col: return 1.0
     
-    if actual:
-        row = df[ (df['Scope'].str.lower() == target.lower()) & (df[actual] == slc_code) ]
-        if not row.empty: return float(row['UPLF'].values[0])
+    row = df[ 
+        (df['Scope'].str.lower().str.contains(target.lower())) & 
+        (df[col] == slc_val) 
+    ]
+    if not row.empty:
+        return float(row['UPLF'].values[0])
     return 1.0
 
-def get_labor_rate(item_str, country, er):
+def get_labor_rate(item_val, country, er):
     if 'LABOR' not in db_tables: return 0.0
     df = db_tables['LABOR']
+    
+    # Buscar Item
+    row = df[df['Item'] == item_val]
+    if row.empty or country not in row.columns: return 0.0
+    
     try:
-        # Búsqueda laxa
-        mask = df.apply(lambda x: str(item_str).split('-')[0].strip() in str(x.values), axis=1)
-        row = df[mask]
-        if not row.empty and country in row.columns:
-            return float(row[country].values[0]) / er
-    except: pass
-    return 0.0
+        val = float(row[country].values[0])
+        return val / er
+    except: return 0.0
 
 # ==========================================
-# 3. INTERFAZ DINÁMICA
+# 4. RENDER UI
 # ==========================================
-st.title("💸 Cotizador V9")
+st.title("💸 LACOST V9 (Ready)")
 
 if 'inputs' not in st.session_state: st.session_state.inputs = {}
 global_vars = {'Country': 'Colombia', 'E/R': 3775.0, 'Duration': 12}
 
-# Validar nombre columna Source
+# Detectar columna source
 src_col = 'Source / Options' if 'Source / Options' in ui_df.columns else 'Source'
 
 for section, group in ui_df.groupby('Section', sort=False):
     
-    # Slide Logic
+    # Slide check
     if "-slide" in str(section).lower():
         cont = st.sidebar
         title = str(section).lower().replace("-slide", "").title()
@@ -237,39 +288,40 @@ for section, group in ui_df.groupby('Section', sort=False):
                 else:
                     val = st.number_input(lbl, min_value=0.0, step=1.0, key=k)
                     st.session_state.inputs[lbl] = val
-
-            elif dtype == 'text' or dtype == 'Text':
-                st.text_input(lbl, key=k)
+                    
+            elif dtype == 'Radio':
+                opts = [x.strip() for x in str(src).split(',') if "###" not in x]
+                st.radio(lbl, opts, horizontal=True, key=k)
 
         if cont != st.sidebar: st.divider()
 
 # ==========================================
-# 4. CÁLCULO
+# 5. CÁLCULO
 # ==========================================
-st.header("4. Totales")
+st.header("Resultados")
 if st.button("Calcular"):
     try:
-        inputs = st.session_state.inputs
+        inp = st.session_state.inputs
         
-        # Mapeo de campos V9
-        usd_cost = inputs.get('USD Unit Cost', 0.0)
-        sqty = inputs.get('SQty', 0.0)
-        slc_sel = inputs.get('SLC', '')
-        lqty = inputs.get('LQty', 0.0)
-        labor_sel = inputs.get('RR/BR', '')
-        if not labor_sel: labor_sel = inputs.get('Labor RR/BR', '') # Fallback nombre
+        # Mapping V9
+        usd_cost = inp.get('USD Unit Cost', 0.0)
+        sqty = inp.get('SQty', 0.0)
+        slc = inp.get('SLC', '')
+        lqty = inp.get('LQty', 0.0)
+        labor_item = inp.get('RR/BR', '')
         
-        uplf = get_slc_factor(slc_sel, global_vars['Country'])
-        serv_total = usd_cost * sqty * uplf * global_vars['Duration']
+        # Calc
+        uplf = get_slc_factor(slc, global_vars['Country'])
+        serv_tot = usd_cost * sqty * uplf * global_vars['Duration']
         
-        lab_rate = get_labor_rate(labor_sel, global_vars['Country'], global_vars['E/R'])
-        lab_total = lab_rate * lqty
+        lab_rate = get_labor_rate(labor_item, global_vars['Country'], global_vars['E/R'])
+        lab_tot = lab_rate * lqty
         
-        grand = serv_total + lab_total
+        grand = serv_tot + lab_tot
         
         c1, c2, c3 = st.columns(3)
-        c1.metric("Servicios", f"${serv_total:,.2f}")
-        c2.metric("Labor", f"${lab_total:,.2f}")
+        c1.metric("Servicios", f"${serv_tot:,.2f}")
+        c2.metric("Labor", f"${lab_tot:,.2f}")
         c3.metric("GRAN TOTAL", f"${grand:,.2f}")
         
     except Exception as e:
