@@ -3,220 +3,128 @@ import pandas as pd
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="LACOST V20 Pro", layout="wide")
+st.set_page_config(page_title="LACOST V20 Dynamic", layout="wide")
 
-# --- 1. CARGA DE DATOS ---
-def load_data():
-    # PAISES
-    countries_data = {
-        'Country': ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico', 'Uruguay', 'Venezuela'],
-        'Currency': ['ARS', 'BRL', 'CLP', 'COP', 'USD', 'PEN', 'MXN', 'UYU', 'VES'],
-        'ER': [1428.95, 5.34, 934.70, 3775.22, 1.0, 3.37, 18.42, 39.73, 235.28],
-    }
-    df_countries = pd.DataFrame(countries_data)
-
-    # OFFERINGS
-    offerings_list = [
-        "IBM Hardware Resell - Server/Storage",
-        "1-HWMA MVS SPT other Prod",
-        "IBM Support for Red Hat",
-        "IBM Customized Support - HW",
-        "IBM Customized Support - SW",
-        "System Technical Support Service",
-        "Relocation Services"
-    ]
-
-    # SLC
-    slc_data = [
-        {'Scope': 'no brazil', 'Desc': '24X74On-site Response (M47)', 'UPLF': 1.5},
-        {'Scope': 'no brazil', 'Desc': '24X7SDOn-site arrival (M19)', 'UPLF': 1.0},
-        {'Scope': 'no brazil', 'Desc': '24X76Fix time (M2B)', 'UPLF': 1.6},
-        {'Scope': 'Brazil', 'Desc': '24X7SDOn-site arrival (M19)', 'UPLF': 1.0},
-        {'Scope': 'Brazil', 'Desc': 'NStd5x9', 'UPLF': 1.0},
-        {'Scope': 'Brazil', 'Desc': 'NStdSBD7x24 (1.278)', 'UPLF': 1.278},
-    ]
-    df_slc = pd.DataFrame(slc_data)
-
-    # LABOR
-    labor_data = [
-        {'Type': 'Machine Category', 'Item': 'System Z (Cat A)', 'Argentina': 304504.2, 'Colombia': 2054058.99, 'Ecuador': 991.20, 'Brazil': 2803.85},
-        {'Type': 'Machine Category', 'Item': 'Power HE (Cat C)', 'Argentina': 194856.48, 'Colombia': 540008.96, 'Ecuador': 340.52, 'Brazil': 1516.61},
-        {'Type': 'Brand Rate Full', 'Item': 'B7 (Senior)', 'Argentina': 40166.28, 'Colombia': 126000.0, 'Ecuador': 79.19, 'Brazil': 186.82}
-    ]
-    df_labor = pd.DataFrame(labor_data)
+# ==========================================
+# 1. SIMULACIÓN DE TU ARCHIVO "UI_CONFIG"
+# ==========================================
+# Aquí es donde defines la estructura. Nota el "-slide" en la primera sección.
+ui_config_data = [
+    # Sección 1: Marcada con "-slide" para ir al Sidebar
+    {"Section": "1. Configuración-slide", "Sub-Section": "-", "Field Label": "País", "Data Type": "Dropdown", "Source": "Countries"},
+    {"Section": "1. Configuración-slide", "Sub-Section": "-", "Field Label": "Moneda", "Data Type": "Read-Only", "Source": "Currency_Ref"},
+    {"Section": "1. Configuración-slide", "Sub-Section": "Vigencia", "Field Label": "Inicio Contrato", "Data Type": "Date", "Source": "User"},
+    {"Section": "1. Configuración-slide", "Sub-Section": "Vigencia", "Field Label": "Fin Contrato", "Data Type": "Date", "Source": "User"},
     
-    return df_countries, offerings_list, df_slc, df_labor
+    # Sección 2: Sin "-slide", va al cuerpo principal
+    {"Section": "2. Servicios", "Sub-Section": "Selección", "Field Label": "Offering / Servicio", "Data Type": "Dropdown", "Source": "Offerings"},
+    {"Section": "2. Servicios", "Sub-Section": "Selección", "Field Label": "QA Risk", "Data Type": "Dropdown", "Source": "Risk"},
+    {"Section": "2. Servicios", "Sub-Section": "Costos", "Field Label": "SLC Profile", "Data Type": "Dropdown", "Source": "SLC"},
+    {"Section": "2. Servicios", "Sub-Section": "Costos", "Field Label": "Costo Unit (USD)", "Data Type": "Number", "Source": "User"},
+    {"Section": "2. Servicios", "Sub-Section": "Costos", "Field Label": "Cantidad", "Data Type": "Number", "Source": "User"},
 
-df_countries, offerings_list, df_slc, df_labor = load_data()
+    # Sección 3: Labor
+    {"Section": "3. Labor (Recursos)", "Sub-Section": "-", "Field Label": "Rol / Perfil", "Data Type": "Dropdown", "Source": "LaborItems"},
+    {"Section": "3. Labor (Recursos)", "Sub-Section": "-", "Field Label": "Horas/Meses", "Data Type": "Number", "Source": "User"},
+]
+df_config = pd.DataFrame(ui_config_data)
 
-# --- FUNCIONES DE CÁLCULO ---
-def get_slc_factor(desc):
-    try:
-        return df_slc[df_slc['Desc'] == desc]['UPLF'].values[0]
-    except:
-        return 1.0
+# ==========================================
+# 2. CARGA DE BASES DE DATOS (Simulada)
+# ==========================================
+def get_database_options(source_name, selected_country=None):
+    # En un caso real, aquí leerías tus otras hojas de Excel
+    if source_name == "Countries":
+        return ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico']
+    elif source_name == "Offerings":
+        return ["IBM Hardware Resell", "Support Red Hat", "Customized Support HW", "Technical Support Svc"]
+    elif source_name == "Risk":
+        return ["Low (2%)", "Medium (5%)", "High (8%)"]
+    elif source_name == "SLC":
+        # Ejemplo: Filtrar SLC si es Brazil (Lógica simple para demo)
+        if selected_country == "Brazil":
+            return ["NStd5x9", "NStdSBD7x24"]
+        return ["24X7SD (M19)", "24X74 (M47)", "24X76 (M2B)"]
+    elif source_name == "LaborItems":
+        return ["System Z (Cat A)", "Power HE (Cat C)", "B7 (Senior)", "B8 (Specialist)"]
+    return []
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.header("1. Configuración")
-    selected_country = st.selectbox("País", df_countries['Country'])
-    country_row = df_countries[df_countries['Country'] == selected_country].iloc[0]
+# ==========================================
+# 3. MOTOR DE RENDERIZADO (LA MAGIA)
+# ==========================================
+st.title("⚙️ LACOST V20: Generador Dinámico")
+
+# Diccionario para guardar lo que el usuario va eligiendo
+user_inputs = {}
+
+# Agrupar por SECCIÓN (Respetando el orden del Excel)
+# sort=False es vital para que no ordene alfabéticamente (1, 2, 3...)
+for section_name, section_df in df_config.groupby("Section", sort=False):
     
-    if selected_country == "Ecuador":
-        er_calc = 1.0
-        curr = "USD"
+    # --- LÓGICA "-slide" ---
+    # Detectamos si la palabra clave está en el nombre de la sección
+    if "-slide" in section_name.lower():
+        target_container = st.sidebar  # Manda a la izquierda
+        display_title = section_name.replace("-slide", "").replace("-Slide", "") # Limpia el título
     else:
-        er_calc = country_row['ER']
-        curr = country_row['Currency']
-
-    col1, col2 = st.columns(2)
-    col1.metric("Moneda", curr)
-    col2.metric("Tasa", f"{er_calc:,.2f}")
+        target_container = st          # Manda al centro
+        display_title = section_name
     
-    st.divider()
-    start_date = st.date_input("Inicio", date.today())
-    end_date = st.date_input("Fin", date.today() + relativedelta(months=12))
-    diff = relativedelta(end_date, start_date)
-    duration_months = diff.years * 12 + diff.months + (1 if diff.days > 0 else 0)
-    st.info(f"Duración: {duration_months} Meses")
+    # Dibujar el Título de la Sección en el contenedor correcto
+    with target_container:
+        st.header(display_title)
+        
+        # Agrupar por SUB-SECCIÓN (Opcional, para orden visual)
+        for sub_name, sub_df in section_df.groupby("Sub-Section", sort=False):
+            if sub_name != "-":
+                st.subheader(sub_name)
+            
+            # Dibujar cada CAMPO (Fila del Excel)
+            for idx, row in sub_df.iterrows():
+                label = row['Field Label']
+                dtype = row['Data Type']
+                source = row['Source']
+                
+                # Generar clave única para Streamlit
+                key_id = f"{label}_{idx}"
+                
+                # --- RENDERIZAR SEGÚN TIPO DE DATO ---
+                if dtype == "Dropdown":
+                    # Obtener opciones (Pasamos el país seleccionado si ya existe)
+                    curr_country = user_inputs.get("País", "Colombia") 
+                    opts = get_database_options(source, curr_country)
+                    val = st.selectbox(label, opts, key=key_id)
+                    user_inputs[label] = val
+                    
+                elif dtype == "Date":
+                    val = st.date_input(label, date.today(), key=key_id)
+                    user_inputs[label] = val
+                    
+                elif dtype == "Number":
+                    val = st.number_input(label, min_value=0.0, step=1.0, key=key_id)
+                    user_inputs[label] = val
+                
+                elif dtype == "Read-Only":
+                    # Ejemplo de lógica visual
+                    st.info(f"{label}: (Calculado Auto)")
 
-# --- MAIN ---
-st.title("📊 LACOST V20")
-
-# Pre-filtros
-scope_filter = "Brazil" if selected_country == "Brazil" else "no brazil"
-filtered_slc = df_slc[df_slc['Scope'] == scope_filter]['Desc'].tolist()
-filtered_items = df_labor['Item'].unique().tolist()
-
-tab_serv, tab_labor, tab_res = st.tabs(["📝 2. Servicios", "👷 3. Labor", "💰 4. Resumen Final"])
+        # Separador visual entre secciones del main
+        if target_container == st:
+            st.divider()
 
 # ==========================================
-# TAB 1: SERVICIOS
+# 4. BOTÓN DE CÁLCULO (Usa lo recolectado)
 # ==========================================
-with tab_serv:
-    st.markdown("### Tabla de Servicios")
+st.subheader("4. Resultados")
+if st.button("Calcular Proyecto"):
+    st.write("Datos capturados dinámicamente:")
+    st.json(user_inputs) # Muestra todo lo que el sistema "leyó" de los inputs
     
-    if 'df_services_input' not in st.session_state:
-        st.session_state.df_services_input = pd.DataFrame(
-            [{"Offering": "IBM Customized Support - HW", "QA Risk": "Low (0.02)", "SLC Profile": filtered_slc[0], "USD Unit Cost": 10.0, "Qty": 1}]
-        )
-
-    # Configuración de columnas (formateada verticalmente para evitar errores)
-    column_cfg_serv = {
-        "Offering": st.column_config.SelectboxColumn(
-            "Offering",
-            options=offerings_list,
-            width="medium"
-        ),
-        "QA Risk": st.column_config.SelectboxColumn(
-            "QA Risk",
-            options=["Low (0.02)", "Medium (0.05)", "High (0.08)"],
-            width="small"
-        ),
-        "SLC Profile": st.column_config.SelectboxColumn(
-            "SLC",
-            options=filtered_slc,
-            width="medium"
-        ),
-        "USD Unit Cost": st.column_config.NumberColumn(
-            "Costo Unit (USD)",
-            format="$%.2f"
-        ),
-        "Qty": st.column_config.NumberColumn(
-            "Cant",
-            min_value=1
-        )
-    }
-
-    edited_services = st.data_editor(
-        st.session_state.df_services_input,
-        num_rows="dynamic",
-        column_config=column_cfg_serv,
-        use_container_width=True,
-        hide_index=True,
-        key="editor_servicios"
-    )
-    
-    # --- CÁLCULO SERVICIOS ---
-    calc_serv = edited_services.copy()
-    calc_serv['SLC Factor'] = calc_serv['SLC Profile'].apply(get_slc_factor)
-    calc_serv['Total Linea'] = calc_serv['USD Unit Cost'] * calc_serv['Qty'] * calc_serv['SLC Factor'] * duration_months
-    total_servicios = calc_serv['Total Linea'].sum()
-    
-    st.divider()
-    cols_s1, cols_s2 = st.columns([3, 1])
-    with cols_s2:
-        st.metric("TOTAL SERVICIOS (USD)", f"${total_servicios:,.2f}")
-
-# ==========================================
-# TAB 2: LABOR
-# ==========================================
-with tab_labor:
-    st.markdown("### Tabla de Recursos")
-    
-    if 'df_labor_input' not in st.session_state:
-        st.session_state.df_labor_input = pd.DataFrame(
-            [{"Item": filtered_items[0], "Qty": 1}]
-        )
-
-    column_cfg_labor = {
-        "Item": st.column_config.SelectboxColumn(
-            "Recurso / Rol",
-            options=filtered_items,
-            width="large"
-        ),
-        "Qty": st.column_config.NumberColumn(
-            "Horas/Meses",
-            min_value=1
-        )
-    }
-
-    edited_labor = st.data_editor(
-        st.session_state.df_labor_input,
-        num_rows="dynamic",
-        column_config=column_cfg_labor,
-        use_container_width=True,
-        hide_index=True,
-        key="editor_labor"
-    )
-
-    # --- CÁLCULO LABOR ---
-    calc_labor = edited_labor.copy()
-    
-    def get_labor_cost(item):
-        try:
-            if selected_country in df_labor.columns:
-                val = df_labor[df_labor['Item'] == item][selected_country].values[0]
-                if pd.isna(val): return 0.0
-                return val / er_calc 
-            return 0.0
-        except:
-            return 0.0
-
-    calc_labor['USD Unit Cost'] = calc_labor['Item'].apply(get_labor_cost)
-    calc_labor['Total Linea'] = calc_labor['USD Unit Cost'] * calc_labor['Qty']
-    total_labor = calc_labor['Total Linea'].sum()
-
-    st.divider()
-    coll_l1, coll_l2 = st.columns([3, 1])
-    with coll_l2:
-        st.metric("TOTAL LABOR (USD)", f"${total_labor:,.2f}")
-
-# ==========================================
-# TAB 3: RESUMEN FINAL
-# ==========================================
-with tab_res:
-    gran_total = total_servicios + total_labor
-    
-    st.subheader("Resumen Ejecutivo")
-    
-    c1, c2, c3 = st.columns(3)
-    c1.info(f"Servicios: ${total_servicios:,.2f}")
-    c2.warning(f"Labor: ${total_labor:,.2f}")
-    c3.success(f"GRAN TOTAL: ${gran_total:,.2f}")
-    
-    st.divider()
-    if st.button("💾 Guardar Proyecto"):
-        st.balloons()
-
+    # Ejemplo de uso de los datos capturados
+    try:
+        cost = user_inputs.get("Costo Unit (USD)", 0)
+        qty = user_inputs.get("Cantidad", 0)
+        total = cost * qty
+        st.success(f"Cálculo Rápido (Costo * Cantidad): ${total:,.2f}")
+    except:
+        st.error("Faltan datos numéricos para calcular.")
