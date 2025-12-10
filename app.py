@@ -5,11 +5,10 @@ from dateutil.relativedelta import relativedelta
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LACOST VERSION 20", layout="wide")
-st.title("💸 LACOST VERSION 20 - Cotizador Cloud")
 
 # --- 1. CARGA DE DATOS ---
 def load_data():
-    # Tabla PAISES (Datos del archivo Source 3)
+    # Tabla PAISES
     countries_data = {
         'Country': ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico', 'Uruguay', 'Venezuela'],
         'Currency': ['ARS', 'BRL', 'CLP', 'COP', 'USD', 'PEN', 'MXN', 'UYU', 'VES'],
@@ -17,7 +16,7 @@ def load_data():
     }
     df_countries = pd.DataFrame(countries_data)
 
-    # Tabla OFFERINGS (Datos del archivo Source 6)
+    # Tabla OFFERINGS
     offerings_list = [
         "IBM Hardware Resell for Server and Storage-Lenovo",
         "1-HWMA MVS SPT other Prod",
@@ -29,7 +28,7 @@ def load_data():
     ]
     df_offerings = pd.DataFrame(offerings_list, columns=['Offering'])
 
-    # Tabla SLC (Datos parciales del Source 3)
+    # Tabla SLC
     slc_data = [
         {'Scope': 'no brazil', 'Desc': '24X74On-site Response time (M47)', 'UPLF': 1.5},
         {'Scope': 'no brazil', 'Desc': '24X7SDOn-site arrival time (M19)', 'UPLF': 1.0},
@@ -40,7 +39,7 @@ def load_data():
     ]
     df_slc = pd.DataFrame(slc_data)
 
-    # Tabla LABOR (Datos del Source 7/8) - CORREGIDA
+    # Tabla LABOR
     labor_data = [
         {'Type': 'Machine Category', 'Item': 'System Z (Cat A)', 'Argentina': 304504.2, 'Colombia': 2054058.99, 'Ecuador': 991.20, 'Brazil': 2803.85},
         {'Type': 'Machine Category', 'Item': 'Power HE (Cat C)', 'Argentina': 194856.48, 'Colombia': 540008.96, 'Ecuador': 340.52, 'Brazil': 1516.61},
@@ -52,7 +51,7 @@ def load_data():
 
 df_countries, df_offerings, df_slc, df_labor = load_data()
 
-# --- ESTILOS CSS PARA MEJORAR VISTA ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .stSelectbox div[data-baseweb="select"] > div {
@@ -61,12 +60,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SECCIÓN 1: GENERAL INFO ---
-st.header("1. General Info")
-c1, c2, c3 = st.columns([1, 1, 2])
-
-with c1:
-    selected_country = st.selectbox("Country", df_countries['Country'])
+# ==========================================
+# BARRA LATERAL (SIDEBAR) - CONFIGURACIÓN
+# ==========================================
+with st.sidebar:
+    st.header("⚙️ Configuración Global")
+    
+    # 1. Selección de País
+    selected_country = st.selectbox("Selecciona País", df_countries['Country'])
     country_row = df_countries[df_countries['Country'] == selected_country].iloc[0]
     
     if selected_country == "Ecuador":
@@ -76,22 +77,30 @@ with c1:
         er_calc = country_row['ER']
         currency_display = country_row['Currency']
 
-with c2:
-    st.metric("Currency", currency_display)
-    st.metric("Exchange Rate (E/R)", f"{er_calc:,.2f}")
-
-with c3:
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        start_date = st.date_input("Contract Start", date.today())
-    with col_d2:
-        end_date = st.date_input("Contract End", date.today() + relativedelta(months=12))
+    # Métricas pequeñas en el sidebar
+    col_kpi1, col_kpi2 = st.columns(2)
+    col_kpi1.metric("Moneda", currency_display)
+    col_kpi2.metric("Tasa (E/R)", f"{er_calc:,.2f}")
     
+    st.divider()
+    
+    # 2. Fechas
+    st.subheader("Vigencia Contrato")
+    start_date = st.date_input("Inicio", date.today())
+    end_date = st.date_input("Fin", date.today() + relativedelta(months=12))
+    
+    # Cálculo duración
     diff = relativedelta(end_date, start_date)
     duration_months = diff.years * 12 + diff.months + (1 if diff.days > 0 else 0)
-    st.info(f"📅 **Period:** {duration_months} Months")
+    
+    st.info(f"⏱️ **Duración:** {duration_months} Meses")
+    st.caption("Nota: Ajusta las fechas aquí para recalcular todo el proyecto.")
 
-st.divider()
+# ==========================================
+# CUERPO PRINCIPAL (MAIN)
+# ==========================================
+st.title("💸 LACOST VERSION 20")
+st.markdown("Calculadora de costos para servicios y recursos Cloud.")
 
 # --- SECCIÓN 2: INPUT COSTS - SERVICIOS ---
 st.header("2. Input Costs - Services")
@@ -111,6 +120,7 @@ st.subheader("2.2. Costos y Niveles de Servicio (SLC)")
 col_s3, col_s4, col_s5 = st.columns([2, 1, 1])
 
 with col_s3:
+    # Filtro SLC
     scope_filter = "Brazil" if selected_country == "Brazil" else "no brazil"
     filtered_slc = df_slc[df_slc['Scope'] == scope_filter]
     
@@ -119,7 +129,7 @@ with col_s3:
         slc_factor = filtered_slc[filtered_slc['Desc'] == slc_selection]['UPLF'].values[0]
     else:
         slc_factor = 1.0
-    st.caption(f"Factor Seleccionado: **{slc_factor}**")
+    st.caption(f"Factor: **{slc_factor}**")
 
 with col_s4:
     usd_unit_cost = st.number_input("USD Unit Cost", value=10.0, format="%.2f")
@@ -159,7 +169,7 @@ with col_l4:
         else:
             raw_cost = 0
             final_labor_unit_cost = 0
-            st.warning(f"No hay tarifa para {selected_country}")
+            st.warning(f"Sin tarifa para {selected_country}")
     except:
         raw_cost = 0
         final_labor_unit_cost = 0
@@ -182,15 +192,13 @@ res_col1, res_col2, res_col3 = st.columns(3)
 
 with res_col1:
     st.success(f"Total Servicios\n# ${total_service_cost:,.2f}")
-    st.caption("Fórmula: Unit Cost * Qty * SLC * Meses")
 
 with res_col2:
     st.warning(f"Total Labor\n# ${total_labor_cost:,.2f}")
-    st.caption("Fórmula: (Costo Local / ER) * Qty")
 
 with res_col3:
     st.error(f"GRAN TOTAL (USD)\n# ${total_grand:,.2f}")
 
 if st.button("Generar Archivo JSON para Conga"):
     st.balloons()
-    st.write("Datos procesados listos para exportar...")
+    st.write("¡Datos procesados correctamente!")
