@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA
 # ==========================================
-st.set_page_config(page_title="LACOST V9 - Autónomo", layout="wide")
+st.set_page_config(page_title="LACOST V9 - Final", layout="wide")
 
 st.markdown("""
 <style>
@@ -18,151 +18,160 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. DATOS INTEGRADOS (RESPALDO V9)
+# 1. DATOS INTEGRADOS (A PRUEBA DE FALLOS)
 # ==========================================
-# Estos datos se usan si no hay archivos externos. Así la app nunca falla.
+# En lugar de texto CSV, definimos los datos directamente para evitar errores de lectura.
 
-DEFAULT_UI = """Section,Sub-Section,Field Label,Data Type,Mandatory,Source / Options
-1. General Info,-,Country,Dropdown,Yes,### TABLE: COUNTRIES(Country)
-1. General Info,-,Currency,Radio,Yes,"USD, Local,### TABLE: COUNTRIES(E/R)"
-1. General Info,-,Contract Start Date,Date,Yes,User imput
-1. General Info,-,Contract End Date,Date,Yes,User imput
-1. General Info,-,Contract Period,Number,Yes,Calculated
-2. Input Costs,-,QA Risk,Dropdown,Yes,### TABLE: QA_RISK (Level)
-2. Input Costs,Servicios,Offering,Dropdown,Yes,### TABLE: Offering(Offering)
-2. Input Costs,Servicios,SLC,Dropdown,Yes,### TABLE: SLC(SLC)
-2. Input Costs,Servicios,USD Unit Cost,Number,Yes,User imput
-2. Input Costs,Servicios,SQty,Number,Yes,User imput
-3. Input Costs,Labor RR/BR,RR/BR,Dropdown,Yes,### TABLE: LABOR(plat,def)
-3. Input Costs,Labor RR/BR,LQty,Number,Yes,User imput
-"""
+def get_default_ui():
+    data = [
+        # Seccion 1
+        {"Section": "1. General Info", "Sub-Section": "-", "Field Label": "Country", "Data Type": "Dropdown", "Source / Options": "### TABLE: COUNTRIES(Country)"},
+        {"Section": "1. General Info", "Sub-Section": "-", "Field Label": "Currency", "Data Type": "Radio", "Source / Options": "USD, Local, ### TABLE: COUNTRIES(E/R)"},
+        {"Section": "1. General Info", "Sub-Section": "-", "Field Label": "Contract Start Date", "Data Type": "Date", "Source / Options": "User imput"},
+        {"Section": "1. General Info", "Sub-Section": "-", "Field Label": "Contract End Date", "Data Type": "Date", "Source / Options": "User imput"},
+        {"Section": "1. General Info", "Sub-Section": "-", "Field Label": "Contract Period", "Data Type": "Number", "Source / Options": "Calculated"},
+        # Seccion 2
+        {"Section": "2. Input Costs", "Sub-Section": "-", "Field Label": "QA Risk", "Data Type": "Dropdown", "Source / Options": "### TABLE: QA_RISK (Level)"},
+        {"Section": "2. Input Costs", "Sub-Section": "Servicios", "Field Label": "Offering", "Data Type": "Dropdown", "Source / Options": "### TABLE: Offering(Offering)"},
+        {"Section": "2. Input Costs", "Sub-Section": "Servicios", "Field Label": "SLC", "Data Type": "Dropdown", "Source / Options": "### TABLE: SLC(SLC)"},
+        {"Section": "2. Input Costs", "Sub-Section": "Servicios", "Field Label": "USD Unit Cost", "Data Type": "Number", "Source / Options": "User imput"},
+        {"Section": "2. Input Costs", "Sub-Section": "Servicios", "Field Label": "SQty", "Data Type": "Number", "Source / Options": "User imput"},
+        # Seccion 3
+        {"Section": "3. Input Costs", "Sub-Section": "Labor RR/BR", "Field Label": "RR/BR", "Data Type": "Dropdown", "Source / Options": "### TABLE: LABOR(plat,def)"},
+        {"Section": "3. Input Costs", "Sub-Section": "Labor RR/BR", "Field Label": "LQty", "Data Type": "Number", "Source / Options": "User imput"},
+    ]
+    return pd.DataFrame(data)
 
-DEFAULT_DB = """
-### TABLE: COUNTRIES
-Country,Currency,E/R
-Argentina,ARS,1428.95
-Brazil,BRL,5.34
-Chile,CLP,934.70
-Colombia,COP,3775.22
-Ecuador,USD,1.0
-Peru,PEN,3.37
-Mexico,MXN,18.42
-Uruguay,UYU,39.73
-Venezuela,VES,235.28
-
-### TABLE: QA_RISK
-Level,Percentage
-Low,0.02
-Medium,0.05
-High,0.08
-
-### TABLE: Offering
-Offering,L40
-IBM Hardware Resell,6942-1BT
-IBM Support for Red Hat,6948-B73
-IBM Customized Support HW,6942-76V
-IBM Customized Support SW,6942-76W
-Relocation Services,6942-54E
-
-### TABLE: SLC
-Scope,Desc,SLC,UPLF
-no brazil,24X74On-site Response time,M47,1.5
-no brazil,24X7SDOn-site arrival time,M19,1.0
-no brazil,24X76Fix time,M2B,1.6
-Brazil,24X7SDOn-site arrival time,M19,1.0
-Brazil,NStd5x9,NStd5x9,1.0
-Brazil,NStdSBD7x24,NStdSBD7x24,1.278
-
-### TABLE: LABOR
-Scope,Item,Argentina,Brazil,Colombia,Ecuador,Peru
-All,System Z,304504.2,2803.85,2054058.99,991.20,1284.60
-All,Power HE,194856.48,1516.61,540008.96,340.52,505.85
-All,B7 (Senior),40166.28,186.82,126000.0,79.19,216.45
-All,B8 (Spec),65472.90,263.20,147000.0,303.04,518.36
-"""
+def get_default_db():
+    tables = {}
+    
+    # Tabla COUNTRIES
+    tables['COUNTRIES'] = pd.DataFrame({
+        'Country': ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico', 'Uruguay', 'Venezuela'],
+        'Currency': ['ARS', 'BRL', 'CLP', 'COP', 'USD', 'PEN', 'MXN', 'UYU', 'VES'],
+        'E/R': [1428.95, 5.34, 934.70, 3775.22, 1.0, 3.37, 18.42, 39.73, 235.28]
+    })
+    
+    # Tabla QA_RISK
+    tables['QA_RISK'] = pd.DataFrame({
+        'Level': ['Low', 'Medium', 'High'],
+        'Percentage': [0.02, 0.05, 0.08]
+    })
+    
+    # Tabla OFFERING
+    tables['Offering'] = pd.DataFrame({
+        'Offering': ['IBM Hardware Resell', 'IBM Support for Red Hat', 'IBM Customized Support HW', 'Relocation Services'],
+        'L40': ['6942-1BT', '6948-B73', '6942-76V', '6942-54E']
+    })
+    
+    # Tabla SLC
+    tables['SLC'] = pd.DataFrame([
+        {'Scope': 'no brazil', 'Desc': '24X74On-site Response', 'SLC': 'M47', 'UPLF': 1.5},
+        {'Scope': 'no brazil', 'Desc': '24X7SDOn-site arrival', 'SLC': 'M19', 'UPLF': 1.0},
+        {'Scope': 'Brazil', 'Desc': '24X7SDOn-site arrival', 'SLC': 'M19', 'UPLF': 1.0},
+        {'Scope': 'Brazil', 'Desc': 'NStd5x9', 'SLC': 'NStd5x9', 'UPLF': 1.0},
+        {'Scope': 'Brazil', 'Desc': 'NStdSBD7x24', 'SLC': 'NStdSBD7x24', 'UPLF': 1.278}
+    ])
+    
+    # Tabla LABOR
+    tables['LABOR'] = pd.DataFrame([
+        {'Scope': 'All', 'Item': 'System Z', 'Argentina': 304504.2, 'Brazil': 2803.85, 'Colombia': 2054058.99, 'Ecuador': 991.20},
+        {'Scope': 'All', 'Item': 'Power HE', 'Argentina': 194856.48, 'Brazil': 1516.61, 'Colombia': 540008.96, 'Ecuador': 340.52},
+        {'Scope': 'All', 'Item': 'B7 (Senior)', 'Argentina': 40166.28, 'Brazil': 186.82, 'Colombia': 126000.0, 'Ecuador': 79.19}
+    ])
+    
+    return tables
 
 # ==========================================
-# 2. GESTOR DE CARGA (HÍBRIDO)
+# 2. GESTOR DE CARGA
 # ==========================================
-
 @st.cache_data
 def load_data(ui_file, db_file):
     # --- 1. PROCESAR UI ---
     if ui_file:
-        df_ui = pd.read_csv(ui_file)
+        try:
+            # Usamos engine='python' para ser más tolerantes con formatos csv complejos
+            df_ui = pd.read_csv(ui_file, engine='python')
+            df_ui.columns = df_ui.columns.str.strip()
+        except Exception as e:
+            st.error(f"Error en archivo UI: {e}")
+            df_ui = get_default_ui()
     else:
-        # Usar datos integrados
-        df_ui = pd.read_csv(io.StringIO(DEFAULT_UI))
-    
-    # Limpieza headers
-    df_ui.columns = df_ui.columns.str.strip()
+        df_ui = get_default_ui()
 
     # --- 2. PROCESAR DB ---
-    tables = {}
-    current_content = db_file.getvalue().decode("utf-8") if db_file else DEFAULT_DB
-    
-    # Parser manual de tablas ### TABLE:
-    current_table = None
-    buffer = []
-    
-    for line in current_content.splitlines():
-        line = line.strip()
-        if "### TABLE:" in line:
-            # Guardar anterior
+    if db_file:
+        tables = {}
+        try:
+            content = db_file.getvalue().decode("utf-8")
+            current_table = None
+            buffer = []
+            
+            for line in content.splitlines():
+                line = line.strip()
+                if "### TABLE:" in line:
+                    # Guardar anterior
+                    if current_table and buffer:
+                        try:
+                            header = buffer[0].split(',')
+                            # Limpieza headers vacíos
+                            header = [h.strip() for h in header if h.strip()]
+                            rows = [r.split(',') for r in buffer[1:] if r.strip()]
+                            # Ajuste de columnas
+                            clean_rows = [r[:len(header)] for r in rows if len(r) >= len(header)]
+                            tables[current_table] = pd.DataFrame(clean_rows, columns=header)
+                        except: pass
+                    
+                    # Nueva tabla
+                    raw_name = line.split("### TABLE:")[1]
+                    current_table = raw_name.split('(')[0].strip()
+                    buffer = []
+                else:
+                    if line and current_table:
+                        buffer.append(line)
+            
+            # Última tabla
             if current_table and buffer:
                 try:
-                    # Detectar csv simple
                     header = buffer[0].split(',')
+                    header = [h.strip() for h in header if h.strip()]
                     rows = [r.split(',') for r in buffer[1:] if r.strip()]
-                    # Ajustar filas
                     clean_rows = [r[:len(header)] for r in rows if len(r) >= len(header)]
                     tables[current_table] = pd.DataFrame(clean_rows, columns=header)
                 except: pass
-            
-            # Nueva tabla
-            raw_name = line.split("### TABLE:")[1]
-            current_table = raw_name.split('(')[0].strip()
-            buffer = []
-        else:
-            if line and current_table:
-                buffer.append(line)
-
-    # Guardar última tabla
-    if current_table and buffer:
-        try:
-            header = buffer[0].split(',')
-            rows = [r.split(',') for r in buffer[1:] if r.strip()]
-            clean_rows = [r[:len(header)] for r in rows if len(r) >= len(header)]
-            tables[current_table] = pd.DataFrame(clean_rows, columns=header)
-        except: pass
-
-    # Conversiones numéricas críticas
-    if 'COUNTRIES' in tables:
-        tables['COUNTRIES']['E/R'] = pd.to_numeric(tables['COUNTRIES']['E/R'], errors='coerce')
-    if 'SLC' in tables:
-        tables['SLC']['UPLF'] = pd.to_numeric(tables['SLC']['UPLF'], errors='coerce')
-    if 'LABOR' in tables:
-        # Intentar convertir todo a numérico excepto las primeras columnas
-        cols = tables['LABOR'].columns
-        for c in cols:
-            if c not in ['Scope', 'Item', 'Plat', 'Def']:
-                tables['LABOR'][c] = pd.to_numeric(tables['LABOR'][c], errors='coerce')
+                
+            # Conversiones numéricas básicas
+            if 'COUNTRIES' in tables:
+                tables['COUNTRIES']['E/R'] = pd.to_numeric(tables['COUNTRIES']['E/R'], errors='coerce')
+            if 'SLC' in tables:
+                tables['SLC']['UPLF'] = pd.to_numeric(tables['SLC']['UPLF'], errors='coerce')
+            if 'LABOR' in tables:
+                # Intentar convertir todo a num except strings conocidos
+                for c in tables['LABOR'].columns:
+                    if c not in ['Scope', 'Item', 'Plat', 'Def']:
+                        tables['LABOR'][c] = pd.to_numeric(tables['LABOR'][c], errors='coerce')
+                        
+        except Exception as e:
+            st.error(f"Error procesando DB File: {e}")
+            tables = get_default_db()
+    else:
+        tables = get_default_db()
 
     return df_ui, tables
 
-# --- SIDEBAR OPCIONAL ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.header("📂 Datos")
-    st.caption("La app ya tiene datos cargados. Si quieres usar tus propios CSV, súbelos aquí:")
+    st.header("📂 Datos del Proyecto")
+    st.caption("Usa archivos CSV opcionales o los datos por defecto.")
     up_ui = st.file_uploader("UI_CONFIG.csv", type=['csv'])
     up_db = st.file_uploader("Databases.csv", type=['csv'])
     st.divider()
 
-# Cargar (Prioridad: Subido > Integrado)
+# Cargar
 ui_df, db_tables = load_data(up_ui, up_db)
 
 # ==========================================
-# 3. LÓGICA V9 (LOOKUPS)
+# 3. LÓGICA V9
 # ==========================================
 
 def get_options(source_str, country_context):
@@ -179,10 +188,9 @@ def get_options(source_str, country_context):
     if tbl_name not in db_tables: return []
     df = db_tables[tbl_name]
     
-    # Scope Logic
+    # Scope
     if 'Scope' in df.columns and country_context:
         target = "Brazil" if country_context == "Brazil" else "no brazil"
-        # Filtro relajado (contains)
         df = df[df['Scope'].str.lower().str.contains(target.lower()) | (df['Scope'] == 'All')]
 
     if col_name and col_name in df.columns:
@@ -199,7 +207,6 @@ def get_slc_factor(slc_val, country):
     df = db_tables['SLC']
     target = "Brazil" if country == "Brazil" else "no brazil"
     
-    # Buscar columna correcta
     col = next((c for c in ['SLC', 'Desc', 'ID_Desc'] if c in df.columns), None)
     if not col: return 1.0
     
@@ -215,7 +222,6 @@ def get_labor_rate(item_val, country, er):
     if 'LABOR' not in db_tables: return 0.0
     df = db_tables['LABOR']
     
-    # Buscar Item
     row = df[df['Item'] == item_val]
     if row.empty or country not in row.columns: return 0.0
     
@@ -227,17 +233,17 @@ def get_labor_rate(item_val, country, er):
 # ==========================================
 # 4. RENDER UI
 # ==========================================
-st.title("💸 LACOST V9 (Ready)")
+st.title("💸 LACOST V9 - Madre Edition")
 
 if 'inputs' not in st.session_state: st.session_state.inputs = {}
 global_vars = {'Country': 'Colombia', 'E/R': 3775.0, 'Duration': 12}
 
-# Detectar columna source
-src_col = 'Source / Options' if 'Source / Options' in ui_df.columns else 'Source'
+# Detectar columna source con flexibilidad
+src_cols = [c for c in ui_df.columns if 'Source' in c]
+src_col = src_cols[0] if src_cols else 'Source'
 
 for section, group in ui_df.groupby('Section', sort=False):
     
-    # Slide check
     if "-slide" in str(section).lower():
         cont = st.sidebar
         title = str(section).lower().replace("-slide", "").title()
@@ -288,7 +294,7 @@ for section, group in ui_df.groupby('Section', sort=False):
                 else:
                     val = st.number_input(lbl, min_value=0.0, step=1.0, key=k)
                     st.session_state.inputs[lbl] = val
-                    
+            
             elif dtype == 'Radio':
                 opts = [x.strip() for x in str(src).split(',') if "###" not in x]
                 st.radio(lbl, opts, horizontal=True, key=k)
