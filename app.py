@@ -1,93 +1,105 @@
 import streamlit as st
-from datetime import date
-from dateutil.relativedelta import relativedelta
+import pandas as pd
+from io import BytesIO
+import openpyxl
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Cotizador IBM", layout="centered")
+# --- Configuración de la Página ---
+st.set_page_config(page_title="Cotizador v11Base", layout="wide")
+st.title("Gestor de Cotizaciones - v11Base")
 
-# --- FUNCIONES ---
-
-def calcular_meses_excel(start_date, end_date):
+# --- Lógica de Negocio (El Corazón del v11) ---
+def calcular_valor_final(pais, moneda, costo, trm):
     """
-    Replica la fórmula de Excel:
-    IF(K14<J14,"Not Valid",ROUND((DATEDIF(J14,K14,"m")+(DATEDIF(J14,K14,"md")+(IF(MONTH(K14)=2,3,1)))/30),1))
+    Aplica la lógica del v11Base:
+    1. Si es Ecuador: El costo pasa directo (Excepción).
+    2. Si es USD (y no Ecuador): Se divide por la TRM.
+    3. Si es Local: Pasa directo.
     """
-    # Validación IF(K14<J14...)
-    if end_date < start_date:
-        return "Not Valid"
-    
-    # DATEDIF(..., "m") y "md"
-    diff = relativedelta(end_date, start_date)
-    meses_completos = (diff.years * 12) + diff.months
-    dias_restantes = diff.days
-    
-    # Ajuste IF(MONTH(K14)=2, 3, 1) -> Si el mes final es Febrero suma 3, sino 1
-    ajuste = 3 if end_date.month == 2 else 1
-    
-    # Cálculo Final: Meses + (Días + Ajuste)/30
-    duracion = meses_completos + ((dias_restantes + ajuste) / 30)
-    
-    return round(duracion, 1)
+    if pais == "Ecuador":
+        return costo
+    elif moneda == "USD":
+        if trm and trm > 0:
+            return costo / trm
+        return 0
+    else:
+        return costo
 
-# --- INTERFAZ DE USUARIO (FRONTEND) ---
-
-st.title("📊 Cotizador de Servicios")
-st.markdown("---")
-
-# 1. Sección de Datos
-col1, col2 = st.columns(2)
+# --- Interfaz de Usuario ---
+col1, col2 = st.columns([1, 2])
 
 with col1:
-    fecha_inicio = st.date_input("Fecha Inicio", value=date.today())
-    pais = st.selectbox("País", ["Colombia", "Ecuador", "Peru", "Mexico", "Chile", "Otro"])
+    st.subheader("1. Configuración")
+    uploaded_file = st.file_uploader("Cargar archivo v11Base (.xlsx / .xlsm)", type=["xlsx", "xlsm"])
+    
+    st.markdown("---")
+    st.subheader("2. Datos de la Cotización")
+    fecha_inicio = st.date_input("Fecha Inicio")
+    fecha_fin = st.date_input("Fecha Fin")
+    pais = st.selectbox("País", ["Colombia", "Ecuador", "Perú", "México", "Chile", "Argentina"])
+    
+    moneda = st.radio("Moneda", ["Local", "USD"], horizontal=True)
+    costo = st.number_input("Costo (Valor)", min_value=0.0, format="%.2f")
+    
+    # TRM solo es relevante si es USD, pero siempre la pedimos por si acaso
+    trm = st.number_input("Tasa de Cambio (TRM)", value=1.0, min_value=0.0001, format="%.2f")
 
 with col2:
-    fecha_fin = st.date_input("Fecha Fin", value=date.today())
-    moneda = st.radio("Moneda de la Cotización", ["Local", "USD"], horizontal=True)
-
-col3, col4 = st.columns(2)
-with col3:
-    costo_input = st.number_input("Costo (Valor)", min_value=0.0, format="%.2f")
-with col4:
-    er_input = st.number_input("Tasa de Cambio (ER/TRM)", min_value=1.0, value=1.0, format="%.2f")
-
-# --- LÓGICA DE NEGOCIO (BACKEND) ---
-
-if st.button("Calcular Cotización", type="primary"):
+    st.subheader("3. Vista Previa y Procesamiento")
     
-    # 1. Calcular Duración con la nueva fórmula
-    resultado_duracion = calcular_meses_excel(fecha_inicio, fecha_fin)
-    
-    if resultado_duracion == "Not Valid":
-        st.error("⚠️ Error: La fecha final no puede ser menor a la fecha de inicio.")
+    if uploaded_file is not None:
+        try:
+            # Leemos el archivo para mostrar info básica (usando openpyxl para no romper macros)
+            wb = openpyxl.load_workbook(uploaded_file)
+            sheet_names = wb.sheetnames
+            st.success(f"Archivo cargado: {uploaded_file.name}")
+            st.write(f"Hojas detectadas: {', '.join(sheet_names)}")
+            
+            # Botón para procesar
+            if st.button("Insertar Cotización en v11Base", type="primary"):
+                
+                # 1. Calcular el valor a insertar
+                valor_a_insertar = calcular_valor_final(pais, moneda, costo, trm)
+                
+                # 2. Seleccionar la hoja (Asumimos 'INPUT cost' por tu historial, o la primera si no existe)
+                target_sheet_name = "INPUT cost"
+                if target_sheet_name not in wb.sheetnames:
+                    st.warning(f"No encontré la hoja '{target_sheet_name}', usaré la primera activa.")
+                    ws = wb.active
+                else:
+                    ws = wb[target_sheet_name]
+                
+                # 3. Encontrar la siguiente fila vacía (o insertar línea específica si tienes una regla fija)
+                # Aquí agregamos al final como ejemplo seguro
+                next_row = ws.max_row + 1
+                
+                # 4. Escribir datos (Mapeo básico, ajústalo a tus columnas reales del v11)
+                # Ejemplo: A=Fecha, B=Pais, C=Valor Final
+                ws.cell(row=next_row, column=1, value=fecha_inicio)
+                ws.cell(row=next_row, column=2, value=pais)
+                ws.cell(row=next_row, column=3, value=valor_a_insertar) 
+                
+                # Feedback visual
+                st.write(f"✅ Dato insertado en fila {next_row}")
+                st.write(f"💰 Valor calculado aplicado: {valor_a_insertar:,.2f} (Lógica: {pais}/{moneda})")
+
+                # 5. Guardar en memoria para descargar
+                output = BytesIO()
+                wb.save(output)
+                output.seek(0)
+                
+                st.download_button(
+                    label="Descargar v11Base Actualizado",
+                    data=output,
+                    file_name=f"v11Base_Actualizado_{pais}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+        except Exception as e:
+            st.error(f"Error procesando el archivo: {e}")
     else:
-        # 2. Lógica de Costos (Según tus reglas anteriores)
-        costo_procesado = costo_input
-        
-        # Regla: Si está en USD, dividir por ER, EXCEPTO si es Ecuador
-        if moneda == "USD":
-            if pais.lower() == "ecuador":
-                costo_procesado = costo_input # Ecuador usa USD, se deja igual
-            else:
-                costo_procesado = costo_input / er_input # Tu regla de división
-        
-        # Costo Total (Asumiendo que el costo ingresado es mensual, multiplicamos por la duración)
-        # Si el costo input fuera total, habría que ajustar esta línea.
-        total_estimado = costo_procesado * resultado_duracion
+        st.info("👈 Por favor carga el archivo v11Base para comenzar.")
 
-        # --- MOSTRAR RESULTADOS ---
-        st.success("Cálculo realizado exitosamente")
-        
-        st.subheader("Resultados")
-        c1, c2, c3 = st.columns(3)
-        
-        with c1:
-            st.metric("Duración (Meses)", value=f"{resultado_duracion}")
-            st.caption("Cálculo basado en lógica Excel")
-            
-        with c2:
-            st.metric("Costo Base Ajustado", value=f"{costo_procesado:,.2f}")
-            st.caption(f"Moneda base tras reglas ({pais})")
-            
-        with c3:
-            st.metric("Total Estimado", value=f"{total_estimado:,.2f}")
+# --- Debug / Validación ---
+st.divider()
+valor_test = calcular_valor_final(pais, moneda, costo, trm)
+st.caption(f"Validación de Lógica en tiempo real: Si insertaras ahora, el valor sería {valor_test:,.2f}")
