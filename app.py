@@ -5,349 +5,357 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 
 # ==========================================
-# CONFIGURACIÓN DE PÁGINA Y ESTILOS (V10)
+# CONFIGURACIÓN DE PÁGINA (V11)
 # ==========================================
-st.set_page_config(page_title="LACOST V10 System", layout="wide")
+st.set_page_config(page_title="LACOST V11", layout="wide")
 
-# CSS PARA TAMAÑO DE LETRA 8-10px Y VISTA COMPACTA
+# CSS: TAMAÑO DE LETRA 8PT Y VISTA COMPACTA
 st.markdown("""
 <style>
-    /* Reducir fuentes globales */
-    html, body, [class*="css"] {
+    /* Forzar tamaño de letra 11px (~8pt) */
+    html, body, [class*="css"], .stTextInput, .stNumberInput, .stSelectbox, .stDateInput {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 12px !important; /* Equivalente visual a 8pt en web */
-    }
-    
-    /* Títulos más pequeños */
-    h1 { font-size: 1.4rem !important; padding: 0.5rem 0 !important; }
-    h2 { font-size: 1.1rem !important; padding: 0.2rem 0 !important; border-bottom: 1px solid #eee; }
-    h3 { font-size: 1.0rem !important; }
-    
-    /* Inputs compactos */
-    .stTextInput input, .stNumberInput input, .stSelectbox div, .stDateInput input {
-        font-size: 12px !important;
-        height: 28px !important;
-        min-height: 28px !important;
-    }
-    
-    /* Labels pegados al input */
-    label {
         font-size: 11px !important;
-        margin-bottom: 0px !important;
     }
     
-    /* Reducir espacios entre bloques */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
+    /* Ajustes de Títulos */
+    h1 { font-size: 16px !important; padding: 5px 0 !important; }
+    h2 { font-size: 14px !important; padding: 2px 0 !important; border-bottom: 1px solid #ddd; }
+    h3 { font-size: 12px !important; font-weight: bold !important; margin-top: 5px !important;}
+    
+    /* Compactar Inputs */
+    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
     }
-    div[data-testid="column"] {
-        padding: 0px 5px !important;
+    
+    /* Compactar Labels */
+    label {
+        font-size: 10px !important;
+        margin-bottom: 0px !important;
+        margin-top: 0px !important;
     }
-    div.stButton > button {
-        font-size: 12px !important;
-        padding: 4px 10px !important;
-    }
+    
+    /* Reducir espacios generales */
+    .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+    div[data-testid="column"] { padding: 0px 4px !important; }
+    div.stButton > button { font-size: 11px !important; padding: 2px 10px !important; height: 28px; }
+    
+    /* Tabs compactos */
+    .stTabs [data-baseweb="tab-list"] { gap: 2px; }
+    .stTabs [data-baseweb="tab"] { padding: 2px 10px; font-size: 11px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. DATOS V10 INTEGRADOS (Simulando tus archivos)
+# 1. MOTOR DE DATOS UNIFICADO (V11)
 # ==========================================
 
-def load_v10_data():
+@st.cache_data
+def load_v11_data():
     data = {}
     
-    # 1. UI_CONGIF.csv
+    # 1. UI_CONFIG (V11 Updated)
     ui_csv = """Section,Sub-Section,Field Label,Data Type,Mandatory,Source / Options
-1. General Info-slide,-,Country,Dropdown,Yes,Countries
-1. General Info-slide,-,Currency,Radio,Yes,"USD, Local"
-1. General Info-slide,-,Contract Start Date,Date,Yes,User imput
-1. General Info-slide,-,Contract End Date,Date,Yes,User imput
-1. General Info-slide,-,Contract Period,Number,Yes,Calculated
-2. Input Costs,-,QA Risk,Dropdown,Yes,Risk
-2. Input Costs,Servicios,Offering,Dropdown,Yes,Offering
-2. Input Costs,Servicios,L40,text,Yes,Calculated
-2. Input Costs,Servicios,Go To Conga,text,Yes,Calculated
-2. Input Costs,Servicios,Start Service Date,Date,Yes,User imput
-2. Input Costs,Servicios,End Service Date,Date,Yes,User imput
-2. Input Costs,Servicios,Duration,Number,Yes,Calculated
-2. Input Costs,Servicios,SLC,Dropdown,Yes,SLC
-2. Input Costs,Servicios,USD Unit Cost,Number,Yes,User imput
-2. Input Costs,Servicios,SQty,Number,Yes,User imput
-3. Input Costs,Labor RR/BR,RR/BR,Dropdown,Yes,Labor
-3. Input Costs,Labor RR/BR,RR/BR Cost,Number,Yes,Calculated
-3. Input Costs,Labor RR/BR,LQty,Number,Yes,User imput
-4. Totales,-,Total Service Cost,Number,Yes,Logic_rules
-4. Totales,-,Total Labor Cost,Number,Yes,Logic_rules
-4. Totales,-,Total Cost,Number,Yes,Logic_rules
-"""
+1. Configuracion-slidebar,-,Country,Dropdown,Yes,Sheet Countries
+1. Configuracion-slidebar,-,Currency,Radio,Yes,Sheet Countries
+1. Configuracion-slidebar,-,Contract Start Date,Date,Yes,User imput
+1. Configuracion-slidebar,-,Contract End Date,Date,Yes,User imput
+1. Configuracion-slidebar,-,Contract Period,Number,Yes,Calculated
+1. Configuracion-slidebar,-,QA Risk,Dropdown,Yes,Sheet Risk
+1. Configuracion-slidebar,-,Client Name,string(20),Yes,User imput
+1. Configuracion-slidebar,-,Client Number,Number(int),Yes,User imput
+2. Servicios-Tab1-main,,Offering,Dropdown,Yes,Sheet Offering
+2. Servicios-Tab1-main,,L40,text,Yes,Calculated
+2. Servicios-Tab1-main,,Go To Conga,text,Yes,Calculated
+2. Servicios-Tab1-main,,DI1,Date,Yes,User imput
+2. Servicios-Tab1-main,,DE1,Date,Yes,User imput
+2. Servicios-Tab1-main,,Duration1,Number,Yes,Calculated
+2. Servicios-Tab1-main,,SLC,Dropdown,Yes,Sheet SLC
+2. Servicios-Tab1-main,,USD Unit Cost,Number,Yes,User imput
+2. Servicios-Tab1-main,,SQty,Number,Yes,User imput
+3. Labor-Tab2-main,,RR/BR,Dropdown,Yes,Sheet Labor
+3. Labor-Tab2-main,,RR/BR Cost,Number,Yes,Calculated
+3. Labor-Tab2-main,,Monthly Hours,Number,Yes,User imput
+3. Labor-Tab2-main,,DI2,Date,Yes,User imput
+3. Labor-Tab2-main,,DE2,Date,Yes,User imput
+3. Labor-Tab2-main,,Duration2,Number,Yes,Calculated
+4. Total Cost-main,,Total Service Cost,Number,Yes,Logic_rules
+4. Total Cost-main,,Total Labor Cost,Number,Yes,Logic_rules
+4. Total Cost-main,,Total Cost,Number,Yes,Logic_rules"""
     data['UI'] = pd.read_csv(io.StringIO(ui_csv))
-    
-    # 2. Countries.csv
-    data['Countries'] = pd.DataFrame({
-        'Country': ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico'],
-        'Currency': ['ARS', 'BRL', 'CLP', 'COP', 'USD', 'PEN', 'MXN'],
-        'E/R': [1428.95, 5.34, 934.70, 3775.22, 1.0, 3.37, 18.42],
-        'Scope': ['No Brazil', 'Brazil', 'No Brazil', 'No Brazil', 'No Brazil', 'No Brazil', 'No Brazil']
-    })
-    
-    # 3. Offering.csv
-    data['Offering'] = pd.DataFrame({
-        'Offering': ['IBM Hardware Resell', 'IBM Support for Red Hat', 'IBM Customized Support HW', 'Relocation Services'],
-        'L40': ['6942-1BT', '6948-B73', '6942-76V', '6942-54E'],
-        'Load in Conga': ['Location Based', 'Conga by CSV', 'Location Based', 'Location Based']
-    })
-    
-    # 4. SLC.csv
-    data['SLC'] = pd.DataFrame([
-        {'Scope': 'No Brazil', 'Desc': '24X7SDOn-site arrival', 'UPLF': 1.0},
-        {'Scope': 'No Brazil', 'Desc': '24X74On-site Response', 'UPLF': 1.5},
-        {'Scope': 'Brazil', 'Desc': '24X7SDOn-site arrival', 'UPLF': 1.0},
-        {'Scope': 'Brazil', 'Desc': 'NStdSBD7x24', 'UPLF': 1.278}
-    ])
-    
-    # 5. Labor.csv (Matriz)
-    data['Labor'] = pd.DataFrame([
-        {'Item': 'System Z', 'Argentina': 304504.2, 'Colombia': 2054058.99, 'Brazil': 2803.85, 'Ecuador': 991.20},
-        {'Item': 'Power HE', 'Argentina': 194856.48, 'Colombia': 540008.96, 'Brazil': 1516.61, 'Ecuador': 340.52},
-        {'Item': 'B7 (Senior)', 'Argentina': 40166.28, 'Colombia': 126000.0, 'Brazil': 186.82, 'Ecuador': 79.19}
-    ])
-    
-    # 6. Risk.csv
-    data['Risk'] = pd.DataFrame({'Level': ['Low', 'Medium', 'High'], 'Percentage': [0.02, 0.05, 0.08]})
-    
+
+    # 2. COUNTRIES (Transformado de Matriz a Tabla Limpia)
+    # He unificado la data de tu archivo Countries.csv para que sea legible
+    countries_data = {
+        'Country': ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico', 'Uruguay', 'Venezuela'],
+        'Currency': ['ARS', 'BRL', 'CLP', 'COP', 'USD', 'PEN', 'MXN', 'UYU', 'VES'],
+        'E/R': [1428.95, 5.34, 934.70, 3775.22, 1.0, 3.37, 18.42, 39.73, 235.28],
+        'Scope': ['All', 'Brazil', 'All', 'All', 'All', 'All', 'All', 'All', 'All']
+    }
+    data['Countries'] = pd.DataFrame(countries_data)
+
+    # 3. OFFERING (V11)
+    offering_csv = """Offering,L40,Load in conga
+IBM Hardware Resell for Server and Storage-Lenovo,6942-1BT,Location Based Services
+1-HWMA MVS SPT other Prod,6942-0IC,Conga by CSV
+2-HWMA MVS SPT other Prod,6942-0IC,Conga by CSV
+SWMA MVS SPT other Prod,6942-76O,Conga by CSV
+IBM Support for Red Hat,6948-B73,Conga by CSV
+IBM Support for Red Hat - Enterprise Linux Subscription,6942-42T,Location Based Services
+Subscription for Red Hat,6948-66J,Location Based Services
+Support for Red Hat,6949-66K,Location Based Services
+IBM Support for Oracle,6942-42E,Location Based Services
+IBM Customized Support for Multivendor Hardware Services,6942-76T,Location Based Services
+IBM Customized Support for Multivendor Software Services,6942-76U,Location Based Services
+IBM Customized Support for Hardware Services-Logo,6942-76V,Location Based Services
+IBM Customized Support for Software Services-Logo,6942-76W,Location Based Services
+HWMA MVS SPT other Loc,6942-0ID,Location Based Services
+SWMA MVS SPT other Loc,6942-0IG,Location Based Services
+Relocation Services - Packaging,6942-54E,Location Based Services
+Relocation Services - Movers Charge,6942-54F,Location Based Services
+Relocation Services - Travel and Living,6942-54R,Location Based Services
+Relocation Services - External Vendor's Charge,6942-78O,Location Based Services
+IBM Hardware Resell for Networking and Security Alliances,6942-1GE,Location Based Services
+IBM Software Resell for Networking and Security Alliances,6942-1GF,Location Based Services
+System Technical Support Service-MVS-STSS,6942-1FN,Location Based Services
+System Technical Support Service-Logo-STSS,6942-1KJ,Location Based Services"""
+    data['Offering'] = pd.read_csv(io.StringIO(offering_csv))
+
+    # 4. SLC (V11)
+    slc_csv = """Scope,SLC,UPLF,Desc
+All,M1A,1.0,9X5NBD On-site
+All,M16,1.0,9X5SBD On-site
+All,M19,1.0,24X7SD On-site
+All,M5B,1.05,24X7 1hr Contact
+All,M47,1.5,24X7 4hr On-site
+All,MJ7,1.1,24X7 72hr Fix
+All,M3F,1.15,24X7 48hr Fix
+All,M3B,1.2,24X7 24hr Fix
+All,M33,1.3,24X7 12hr Fix
+All,M2F,1.4,24X7 8hr Fix
+All,M2B,1.6,24X7 6hr Fix
+All,M23,1.7,24X7 4hr Fix
+Brazil,M19,1.0,24X7SD On-site
+Brazil,NStd5x9,1.0,NStd 5x9
+Brazil,NStdSBD7x24,1.278,NStd SBD 7x24"""
+    data['SLC'] = pd.read_csv(io.StringIO(slc_csv))
+
+    # 5. LABOR (V11)
+    labor_csv = """Item,Argentina,Brazil,Chile,Colombia,Ecuador,Peru,Mexico,Uruguay,Venezuela
+System Z,304504.2,2803.85,2165270.4,2054058.99,991.20,1284.60,12857.25,30167.39,102721.98
+Power HE,194856.48,1516.61,486361.26,540008.96,340.52,505.85,5857.95,18987.51,40555.17
+Power LE,162675.24,742.22,486361.26,379581.99,283.76,312.87,3860.85,10986.01,36819.82
+System X HE,66943.8,0,101090.22,108029.93,153.10,211.05,1054.2,8828.82,112860.77
+B7 (Senior),40166.28,186.82,54081.72,126000.0,79.19,216.45,673.05,3581.26,20998.96"""
+    data['Labor'] = pd.read_csv(io.StringIO(labor_csv))
+
+    # 6. RISK (V11)
+    risk_csv = """Level,Percentage
+Low,0.02
+Medium,0.05
+High,0.08"""
+    data['Risk'] = pd.read_csv(io.StringIO(risk_csv))
+
     return data
 
-DB = load_v10_data()
-UI_DF = DB['UI']
-# Limpieza de columnas
-UI_DF.columns = UI_DF.columns.str.strip()
+DB = load_v11_data()
 
 # ==========================================
-# 2. FUNCIONES DE LÓGICA
+# 2. FUNCIONES LÓGICAS
 # ==========================================
 
-def get_er(country):
-    """Obtiene la tasa de cambio"""
-    df = DB['Countries']
-    row = df[df['Country'] == country]
+def get_country_info(country):
+    row = DB['Countries'][DB['Countries']['Country'] == country]
     if not row.empty:
-        # Si es Ecuador, ER siempre es 1
-        return 1.0 if country == "Ecuador" else float(row['E/R'].values[0])
-    return 1.0
+        er = 1.0 if country == "Ecuador" else float(row['E/R'].values[0])
+        scope = "Brazil" if country == "Brazil" else "All"
+        return er, scope
+    return 1.0, "All"
 
-def get_scope(country):
-    """Define si es Brazil o No Brazil"""
-    if country == "Brazil": return "Brazil"
-    return "No Brazil"
-
-def get_dropdown_options(source_name, country_context):
-    """Obtiene opciones filtradas"""
-    options = []
-    
-    if source_name == "Countries":
+def get_options(source, country_scope):
+    if source == "Sheet Countries":
         return DB['Countries']['Country'].unique().tolist()
-    
-    elif source_name == "Risk":
+    elif source == "Sheet Risk":
         return DB['Risk']['Level'].unique().tolist()
-    
-    elif source_name == "Offering":
+    elif source == "Sheet Offering":
         return DB['Offering']['Offering'].unique().tolist()
-    
-    elif source_name == "SLC":
+    elif source == "Sheet SLC":
         df = DB['SLC']
-        scope = get_scope(country_context)
-        # Filtrar por Scope
-        df_filtered = df[df['Scope'] == scope]
-        return df_filtered['Desc'].unique().tolist()
-    
-    elif source_name == "Labor":
+        # Si scope es Brazil, mostramos solo Brazil. Si es All, mostramos All.
+        return df[df['Scope'] == country_scope]['SLC'].unique().tolist()
+    elif source == "Sheet Labor":
         return DB['Labor']['Item'].unique().tolist()
-        
     return []
 
-def calculate_months(start_date, end_date):
-    """Calcula duración en meses"""
-    if start_date and end_date:
-        d = relativedelta(end_date, start_date)
+def calculate_months(start, end):
+    if start and end and end > start:
+        d = relativedelta(end, start)
         return d.years * 12 + d.months + (1 if d.days > 0 else 0)
     return 0
 
-def lookup_offering_data(offering_name):
-    """Busca L40 y Conga"""
-    df = DB['Offering']
-    row = df[df['Offering'] == offering_name]
-    if not row.empty:
-        return row['L40'].values[0], row['Load in Conga'].values[0]
-    return "", ""
-
 # ==========================================
-# 3. RENDERIZADO DE LA UI
+# 3. INTERFAZ DE USUARIO (RENDER LOOP)
 # ==========================================
-st.title("💸 LACOST V10 System")
+st.title("💸 LACOST V11 - Unificada")
 
-# Inicializar sesión
 if 'inputs' not in st.session_state: st.session_state.inputs = {}
-if 'global_country' not in st.session_state: st.session_state.global_country = "Colombia"
+if 'country' not in st.session_state: st.session_state.country = "Colombia"
 
-# Variables globales derivadas
-curr_er = get_er(st.session_state.global_country)
-curr_currency = "USD" if st.session_state.global_country == "Ecuador" else "Local"
+# Variables derivadas del estado actual
+curr_er, curr_scope = get_country_info(st.session_state.country)
 
-# Agrupar por Sección
-for section_name, section_group in UI_DF.groupby('Section', sort=False):
+# Agrupamos por secciones de UI_CONFIG
+ui_df = DB['UI']
+grouped = ui_df.groupby('Section', sort=False)
+
+# Crear estructura de Tabs si es necesario
+main_container = st.container()
+tabs_created = {} # Para guardar las referencias a los tabs
+
+# Identificar Tabs necesarios
+tab_names = []
+for name in grouped.groups.keys():
+    if "-Tab" in str(name):
+        # Extraer nombre del tab (ej: Servicios, Labor)
+        t_name = str(name).split('-')[1] # Tab1, Tab2...
+        if t_name not in tab_names: tab_names.append(t_name)
+
+if tab_names:
+    tabs = st.tabs([t.replace("Tab1", "Servicios").replace("Tab2", "Labor") for t in tab_names])
+    for i, t_name in enumerate(tab_names):
+        tabs_created[t_name] = tabs[i]
+
+# RENDERIZADO
+for section, group in grouped:
+    sec_str = str(section).strip()
     
-    # Detectar -slide
-    sec_str = str(section_name).strip()
-    is_sidebar = "-slide" in sec_str.lower()
-    
-    # Contenedor destino
-    if is_sidebar:
-        container = st.sidebar
-        title = sec_str.lower().replace("-slide", "").title()
+    # Lógica de Ubicación
+    if "-slidebar" in sec_str:
+        cont = st.sidebar
+        title = sec_str.split('-')[0].split('.')[1].strip()
+    elif "-Tab" in sec_str:
+        # Buscar qué tab es
+        t_key = [t for t in tab_names if t in sec_str][0]
+        cont = tabs_created[t_key]
+        title = sec_str.split('-')[0].split('.')[1].strip()
     else:
-        container = st.container()
-        title = sec_str
+        cont = main_container
+        title = sec_str.split('-')[0].split('.')[1].strip() if '.' in sec_str else sec_str
+
+    with cont:
+        if "-Tab" not in sec_str: st.subheader(title) # No repetir titulo en tabs
         
-    with container:
-        st.header(title)
-        
-        # Iterar campos
-        for idx, row in section_group.iterrows():
-            label = row['Field Label']
+        for idx, row in group.iterrows():
+            lbl = row['Field Label']
             dtype = row['Data Type']
-            source = row['Source / Options']
-            key = label # Usamos label como ID único
+            src = row['Source / Options']
+            k = lbl # ID único
             
-            # --- MANEJO DE TIPOS DE DATOS ---
-            
-            # 1. DROPDOWN
+            # --- WIDGETS ---
             if dtype == 'Dropdown':
-                opts = get_dropdown_options(source, st.session_state.global_country)
-                # Seleccionar valor previo o default
-                idx_sel = 0
-                if key in st.session_state.inputs and st.session_state.inputs[key] in opts:
-                    idx_sel = opts.index(st.session_state.inputs[key])
+                opts = get_options(src, curr_scope)
+                val = st.selectbox(lbl, opts, key=k)
+                st.session_state.inputs[k] = val
                 
-                val = st.selectbox(label, opts, index=idx_sel, key=key+"_widget")
-                st.session_state.inputs[key] = val
-                
-                # Trigger cambio de país
-                if label == 'Country':
-                    st.session_state.global_country = val
-                    st.caption(f"E/R: {get_er(val)}")
+                if lbl == 'Country':
+                    st.session_state.country = val
+                    st.caption(f"Tasa: {get_country_info(val)[0]}")
 
-            # 2. FECHAS
             elif dtype == 'Date':
-                val = st.date_input(label, date.today(), key=key+"_widget")
-                st.session_state.inputs[key] = val
+                val = st.date_input(lbl, date.today(), key=k)
+                st.session_state.inputs[k] = val
 
-            # 3. TEXTO / CALCULADOS (L40, Conga)
-            elif dtype == 'text' or dtype == 'Text':
-                val_display = ""
-                # Auto-rellenar si es L40 o Conga
-                if label in ['L40', 'Go To Conga']:
+            elif dtype in ['text', 'string(20)']:
+                # Autocompletado L40 / Conga
+                val_disp = ""
+                if lbl in ['L40', 'Go To Conga']:
                     off = st.session_state.inputs.get('Offering')
                     if off:
-                        l40, conga = lookup_offering_data(off)
-                        val_display = l40 if label == 'L40' else conga
+                        row_off = DB['Offering'][DB['Offering']['Offering'] == off]
+                        if not row_off.empty:
+                            val_disp = row_off['L40'].values[0] if lbl=='L40' else row_off['Load in conga'].values[0]
                 
-                st.text_input(label, value=val_display, disabled=True, key=key+"_widget")
-                st.session_state.inputs[key] = val_display
+                st.text_input(lbl, value=val_disp, disabled=(lbl in ['L40','Go To Conga']), key=k)
+                st.session_state.inputs[k] = val_disp
 
-            # 4. NUMEROS / CALCULADOS
-            elif dtype == 'Number':
+            elif dtype in ['Number', 'Number(int)']:
                 val_num = 0.0
                 disabled = False
                 
-                # Lógica de campos calculados
-                if "Period" in label:
+                # Calculados
+                if "Contract Period" in lbl:
                     val_num = calculate_months(st.session_state.inputs.get('Contract Start Date'), st.session_state.inputs.get('Contract End Date'))
                     disabled = True
-                elif label == "Duration":
-                    val_num = calculate_months(st.session_state.inputs.get('Start Service Date'), st.session_state.inputs.get('End Service Date'))
+                elif "Duration1" in lbl:
+                    val_num = calculate_months(st.session_state.inputs.get('DI1'), st.session_state.inputs.get('DE1'))
                     disabled = True
-                elif label == "RR/BR Cost": # Preview de costo labor
+                elif "Duration2" in lbl:
+                    val_num = calculate_months(st.session_state.inputs.get('DI2'), st.session_state.inputs.get('DE2'))
+                    disabled = True
+                elif lbl == "RR/BR Cost":
                     l_item = st.session_state.inputs.get('RR/BR')
-                    if l_item:
-                        df_l = DB['Labor']
-                        r = df_l[df_l['Item'] == l_item]
-                        if not r.empty and st.session_state.global_country in r.columns:
-                            val_num = float(r[st.session_state.global_country].values[0])
+                    if l_item and st.session_state.country in DB['Labor'].columns:
+                        r = DB['Labor'][DB['Labor']['Item'] == l_item]
+                        if not r.empty:
+                            local = float(r[st.session_state.country].values[0])
+                            val_num = local / curr_er # Dividido por ER segun regla V11
                     disabled = True
-                elif "Total" in label: # Totales finales
-                     val_num = st.session_state.inputs.get(label, 0.0)
-                     disabled = True
+                elif "Total" in lbl:
+                    val_num = st.session_state.inputs.get(lbl, 0.0)
+                    disabled = True
                 
-                if disabled:
-                    st.number_input(label, value=float(val_num), disabled=True, key=key+"_widget")
-                    st.session_state.inputs[key] = val_num
-                else:
-                    # Input editable
-                    val = st.number_input(label, min_value=0.0, step=1.0, key=key+"_widget")
-                    st.session_state.inputs[key] = val
+                st.number_input(lbl, value=float(val_num), disabled=disabled, key=k)
+                st.session_state.inputs[k] = val_num
 
-            # 5. RADIO
             elif dtype == 'Radio':
-                opts = str(source).replace('"', '').split(',')
-                val = st.radio(label, opts, horizontal=True, key=key+"_widget")
-                st.session_state.inputs[key] = val
-
-        if not is_sidebar: st.markdown("---")
+                opts = get_options(src, curr_scope) # Currency usa Sheet Countries tambien
+                if not opts and "," in str(src): opts = src.split(',')
+                st.radio(lbl, opts, horizontal=True, key=k)
 
 # ==========================================
-# 4. BOTÓN DE CÁLCULO
+# 4. BOTÓN CÁLCULO
 # ==========================================
-col_btn, col_info = st.columns([1, 4])
-
-with col_btn:
-    if st.button("CALCULAR COTIZACIÓN", type="primary"):
-        # Recuperar datos
-        inp = st.session_state.inputs
-        country = st.session_state.global_country
-        er = get_er(country)
-        
-        # 1. Servicios
-        usd_cost = inp.get('USD Unit Cost', 0.0)
-        sqty = inp.get('SQty', 0.0)
-        dur = inp.get('Duration', 0)
-        slc_desc = inp.get('SLC')
-        
-        # Buscar factor SLC
-        uplf = 1.0
-        if slc_desc:
-            df_s = DB['SLC']
-            r = df_s[df_s['Desc'] == slc_desc]
-            if not r.empty: uplf = float(r['UPLF'].values[0])
-            
-        total_svc = usd_cost * sqty * uplf * dur
-        
-        # 2. Labor
-        lqty = inp.get('LQty', 0.0)
-        labor_local_price = inp.get('RR/BR Cost', 0.0)
-        
-        labor_unit_usd = labor_local_price / er
-        total_lab = labor_unit_usd * lqty
-        
-        # 3. Totales
-        grand_total = total_svc + total_lab
-        
-        # Guardar en estado para mostrar en los campos readonly
-        st.session_state.inputs['Total Service Cost'] = total_svc
-        st.session_state.inputs['Total Labor Cost'] = total_lab
-        st.session_state.inputs['Total Cost'] = grand_total
-        
-        st.success("Calculado.")
-        st.rerun()
-
-# Mostrar Resultados Rápidos
-with col_info:
-    t_svc = st.session_state.inputs.get('Total Service Cost', 0.0)
-    t_lab = st.session_state.inputs.get('Total Labor Cost', 0.0)
-    t_tot = st.session_state.inputs.get('Total Cost', 0.0)
+st.markdown("---")
+if st.button("CALCULAR TOTALES", type="primary"):
+    inp = st.session_state.inputs
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Servicios", f"${t_svc:,.2f}")
-    c2.metric("Labor", f"${t_lab:,.2f}")
-    c3.metric("TOTAL USD", f"${t_tot:,.2f}")
+    # 1. Servicios
+    u_cost = inp.get('USD Unit Cost', 0.0)
+    sqty = inp.get('SQty', 0.0)
+    dur1 = inp.get('Duration1', 0)
+    slc = inp.get('SLC')
+    
+    # Factor SLC
+    uplf = 1.0
+    if slc:
+        rs = DB['SLC'][DB['SLC']['SLC'] == slc]
+        # Filtrar por scope tambien si es necesario, pero SLC code deberia ser unico
+        if not rs.empty: uplf = float(rs['UPLF'].values[0])
+        
+    tot_svc = u_cost * sqty * uplf * dur1
+    
+    # 2. Labor
+    l_cost_usd = inp.get('RR/BR Cost', 0.0) # Ya viene dividido por ER
+    lqty = inp.get('Monthly Hours', 0.0) # Ojo: Etiqueta V11 cambio a Monthly Hours
+    dur2 = inp.get('Duration2', 0)
+    
+    # Regla V11 Labor: Costo Unitario USD * Horas * Duracion? 
+    # Logic Rules dice: Total Labor Cost = Logic_rules. Asumo (Costo * Qty * Duration) o solo (Costo * Qty) si es mensual.
+    # Si Monthly Hours es horas por mes, entonces * duracion. Si es Qty total, no.
+    # Asumiremos Costo Mensual Total = (Costo Hora * Horas) * Meses ??
+    # V10 era Unit * Qty. V11 introduce Monthly Hours y Duration2.
+    # FORMULA LOGICA: Costo Unitario (USD) * Monthly Hours * Duration2
+    tot_lab = l_cost_usd * lqty * dur2
+    
+    grand = tot_svc + tot_lab
+    
+    # Guardar
+    st.session_state.inputs['Total Service Cost'] = tot_svc
+    st.session_state.inputs['Total Labor Cost'] = tot_lab
+    st.session_state.inputs['Total Cost'] = grand
+    
+    st.success("Cálculo Completado")
+    st.rerun()
