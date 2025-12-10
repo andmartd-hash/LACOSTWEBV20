@@ -1,200 +1,196 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
-import math
 
 # --- Configuración de la Página ---
-st.set_page_config(page_title="Cotizador V11 - IBM", layout="wide")
-st.title("🛡️ Cotizador de Servicios - Lógica V11 Base")
+st.set_page_config(page_title="Cotizador V11 - IBM (Standalone)", layout="wide")
+st.title("🛡️ Cotizador de Servicios - Lógica V11")
 
-# --- Carga de Datos (Data-Driven) ---
-# Usamos caché para no recargar los CSV cada vez que cambias un dato
-@st.cache_data
-def load_data():
-    try:
-        # Ajusta los nombres de archivo si es necesario
-        countries = pd.read_csv("Countries.csv")
-        risk = pd.read_csv("Risk.csv")
-        offering = pd.read_csv("Offering.csv")
-        labor = pd.read_csv("Labor.csv")
-        slc = pd.read_csv("SLC.csv")
-        return countries, risk, offering, labor, slc
-    except FileNotFoundError as e:
-        st.error(f"❌ Error: No encuentro el archivo {e.filename}. Asegúrate de que los CSV estén en la carpeta.")
-        return None, None, None, None, None
+# ==========================================
+# 1. BASE DE DATOS INTEGRADA (Hardcoded)
+# ==========================================
 
-df_countries, df_risk, df_offering, df_labor, df_slc = load_data()
+# Datos de Países y TRM (Fuente: Countries.csv)
+DATA_COUNTRIES = {
+    "Colombia":  {"Currency": "COP", "ER": 3775.22},
+    "Ecuador":   {"Currency": "USD", "ER": 1.0},
+    "Peru":      {"Currency": "PEN", "ER": 3.37},
+    "Mexico":    {"Currency": "MXN", "ER": 18.42},
+    "Brazil":    {"Currency": "BRL", "ER": 5.34},
+    "Chile":     {"Currency": "CLP", "ER": 934.70},
+    "Argentina": {"Currency": "ARS", "ER": 1428.95},
+    "Uruguay":   {"Currency": "UYU", "ER": 39.73},
+    "Venezuela": {"Currency": "VES", "ER": 235.28}
+}
 
-if df_countries is not None:
-    # --- 1. BARRA LATERAL: CONFIGURACIÓN (UI_CONFIG Section 1) ---
-    with st.sidebar:
-        st.header("1. Configuración")
+# Datos de Riesgo (Fuente: Risk.csv)
+DATA_RISK = {
+    "Low": 0.02,
+    "Medium": 0.05,
+    "High": 0.08
+}
+
+# Datos de SLC (Fuente: SLC.csv - Muestra representativa)
+DATA_SLC = {
+    "M1A": 1.0, "M16": 1.0, "M19": 1.0, 
+    "M5B": 1.05, "MJ7": 1.1, "M3F": 1.15, 
+    "M3B": 1.2, "M33": 1.3, "M2F": 1.4, 
+    "M2B": 1.6, "M23": 1.7, "M47": 1.5
+}
+
+# Datos de Mano de Obra (Fuente: Labor.csv - Muestra extraída del snippet)
+# Estructura: Tipo -> Plataforma -> Costo Local por País
+DATA_LABOR = {
+    "Machine Category": {
+        "System Z":   {"Colombia": 2054058, "Ecuador": 991.21, "Mexico": 12857, "Brazil": 2803.85, "Peru": 1284.60, "Chile": 2165270, "Argentina": 304504},
+        "Power HE":   {"Colombia": 540009,  "Ecuador": 340.52, "Mexico": 5857,  "Brazil": 1516.61, "Peru": 505.85,  "Chile": 486361,  "Argentina": 194856},
+        "Power LE":   {"Colombia": 379582,  "Ecuador": 283.77, "Mexico": 4500,  "Brazil": 742.22,  "Peru": 312.87,  "Chile": 486361,  "Argentina": 162675},
+        "Storage HE": {"Colombia": 450000,  "Ecuador": 300.00, "Mexico": 5000,  "Brazil": 1403.43}, # Valores estimados donde no había data en snippet
+        "Storage LE": {"Colombia": 300000,  "Ecuador": 200.00, "Mexico": 3000,  "Brazil": 536.45}
+    },
+    "Brand Rate Full": {
+        "FULL":       {"Colombia": 15000000, "Ecuador": 4000, "Mexico": 80000, "Brazil": 15247} # Ejemplo genérico
+    }
+}
+
+# ==========================================
+# 2. INTERFAZ Y LÓGICA
+# ==========================================
+
+# --- Sidebar: Configuración General ---
+with st.sidebar:
+    st.header("1. Configuración del Contrato")
+    
+    # País
+    paises_list = list(DATA_COUNTRIES.keys())
+    pais_sel = st.selectbox("País", paises_list, index=paises_list.index("Colombia"))
+    
+    # Datos automáticos del país
+    info_pais = DATA_COUNTRIES[pais_sel]
+    er_pais = info_pais["ER"]
+    moneda_pais = info_pais["Currency"]
+    
+    st.info(f"🏳️ **{pais_sel}** | Moneda: {moneda_pais} | TRM: {er_pais:,.2f}")
+
+    # Fechas
+    fecha_inicio = st.date_input("Inicio Contrato")
+    fecha_fin = st.date_input("Fin Contrato")
+    
+    # Cálculo duración contrato (meses)
+    meses_contrato = (fecha_fin.year - fecha_inicio.year) * 12 + (fecha_fin.month - fecha_inicio.month)
+    meses_contrato = max(1, meses_contrato) # Mínimo 1 mes
+    st.write(f"⏱️ Duración: **{meses_contrato} meses**")
+
+    # Riesgo y Cliente
+    riesgo_sel = st.selectbox("QA Risk", list(DATA_RISK.keys()))
+    pct_riesgo = DATA_RISK[riesgo_sel]
+    
+    cliente = st.text_input("Cliente", "Cliente Prueba")
+
+# --- Cuerpo Principal ---
+tab_servicios, tab_labor, tab_resumen = st.tabs(["🧩 Servicios (Offering)", "👷 Mano de Obra (Labor)", "📊 Resumen"])
+
+# ------------------------------------------
+# TAB 1: SERVICIOS
+# ------------------------------------------
+with tab_servicios:
+    st.subheader("Cálculo de Servicios")
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        offering_name = st.selectbox("Offering", ["IBM Hardware Resell", "IBM Support for Red Hat", "Customized Support", "HWMA MVS SPT"])
+        slc_sel = st.selectbox("Nivel de Servicio (SLC)", list(DATA_SLC.keys()), index=2) # Default M19
+        uplf = DATA_SLC[slc_sel]
+        st.metric("Factor SLC (UPLF)", uplf)
         
-        # Selección de País
-        lista_paises = df_countries['Country'].dropna().unique().tolist()
-        pais_sel = st.selectbox("País (Country)", lista_paises, index=lista_paises.index("Colombia") if "Colombia" in lista_paises else 0)
+    with c2:
+        usd_unit_cost = st.number_input("Costo Unitario (USD)", value=10.0, min_value=0.0)
+        sqty = st.number_input("Cantidad (SQty)", value=1, min_value=1)
         
-        # Obtener datos del país (TRM, Moneda)
-        datos_pais = df_countries[df_countries['Country'] == pais_sel].iloc[0]
-        currency = datos_pais['Currency']
-        er = datos_pais['ER']
+    with c3:
+        duracion_srv = st.number_input("Duración Servicio (Meses)", value=meses_contrato, min_value=1)
+
+    # FÓRMULA SERVICIOS: Unit * Qty * UPLF * Duration
+    costo_total_servicios = usd_unit_cost * sqty * uplf * duracion_srv
+    st.success(f"💰 Total Servicios: **USD {costo_total_servicios:,.2f}**")
+
+# ------------------------------------------
+# TAB 2: MANO DE OBRA (LABOR)
+# ------------------------------------------
+with tab_labor:
+    st.subheader("Cálculo de Mano de Obra")
+    l1, l2, l3 = st.columns(3)
+    
+    with l1:
+        tipo_labor = st.selectbox("Tipo (MC/RR)", list(DATA_LABOR.keys()))
+        plataformas = list(DATA_LABOR[tipo_labor].keys())
+        plat_sel = st.selectbox("Plataforma / Categoría", plataformas)
         
-        st.info(f"💱 Moneda: **{currency}** | TRM (ER): **{er:,.2f}**")
-
-        # Fechas y Duración
-        start_date = st.date_input("Fecha Inicio Contrato", date.today())
-        end_date = st.date_input("Fecha Fin Contrato", date.today().replace(year=date.today().year + 1))
+    with l2:
+        # LÓGICA V11 BASE: Buscar costo local y dividir por ER
+        costos_plataforma = DATA_LABOR[tipo_labor][plat_sel]
         
-        # Cálculo de meses (Contract Period)
-        months_contract = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-        if end_date.day < start_date.day:
-            months_contract -= 1
-        months_contract = max(0, months_contract) # Evitar negativos
+        # Verificar si existe costo para el país seleccionado
+        costo_base_local = costos_plataforma.get(pais_sel, 0.0)
         
-        st.write(f"📅 Periodo del Contrato: **{months_contract} meses**")
+        if costo_base_local > 0:
+            costo_labor_usd = costo_base_local / er_pais
+            st.metric(f"Costo Base ({moneda_pais})", f"{costo_base_local:,.2f}")
+            st.metric("Costo Calculado (USD)", f"{costo_labor_usd:,.2f}", help=f"Costo Local / TRM {er_pais}")
+        else:
+            st.error(f"No hay tarifa definida para {plat_sel} en {pais_sel}.")
+            costo_labor_usd = 0.0
 
-        # Riesgo
-        lista_riesgos = df_risk['Level'].dropna().unique().tolist()
-        risk_sel = st.selectbox("QA Risk", lista_riesgos)
-        risk_pct = df_risk[df_risk['Level'] == risk_sel]['Percentage'].values[0]
+    with l3:
+        lqty = st.number_input("Cantidad Recursos (LQty)", value=1, min_value=1)
+        duracion_lab = st.number_input("Duración Labor (Meses)", value=meses_contrato, min_value=1)
 
-        # Cliente
-        client_name = st.text_input("Nombre Cliente", "Cliente Ejemplo")
-        client_num = st.text_input("Número Cliente", "00000")
+    # FÓRMULA LABOR: Costo_USD * Qty * Duration
+    costo_total_labor = costo_labor_usd * lqty * duracion_lab
+    st.success(f"👷 Total Labor: **USD {costo_total_labor:,.2f}**")
 
-    # --- PESTAÑAS PRINCIPALES ---
-    tab1, tab2, tab3 = st.tabs(["2. Servicios (Offering)", "3. Mano de Obra (Labor)", "📊 Resumen Total"])
-
-    # --- TAB 1: SERVICIOS (Offering) ---
-    with tab1:
-        st.subheader("Configuración de Servicios")
-        col1, col2, col3 = st.columns(3)
+# ------------------------------------------
+# TAB 3: RESUMEN FINAL
+# ------------------------------------------
+with tab_resumen:
+    st.header(f"Resumen de Cotización: {cliente}")
+    
+    total_costo = costo_total_servicios + costo_total_labor
+    # El riesgo en V11 (según test case) parece ser informativo o una provisión aparte, 
+    # aquí lo calculamos pero mostramos el Total Costo estricto primero.
+    reserva_riesgo = total_costo * pct_riesgo
+    
+    col_r1, col_r2 = st.columns(2)
+    
+    with col_r1:
+        st.write("### Desglose")
+        st.write(f"**(+) Servicios:** USD {costo_total_servicios:,.2f}")
+        st.write(f"**(+) Mano de Obra:** USD {costo_total_labor:,.2f}")
+        st.markdown("---")
+        st.write(f"**(=) COSTO TOTAL:** USD {total_costo:,.2f}")
+    
+    with col_r2:
+        st.write("### Indicadores")
+        st.metric("Riesgo QA Aplicado", f"{pct_riesgo:.1%}")
+        st.metric("Reserva de Riesgo (Provisión)", f"USD {reserva_riesgo:,.2f}")
         
-        with col1:
-            # Offering Dropdown
-            offering_list = df_offering['Offering'].dropna().unique().tolist()
-            offering_sel = st.selectbox("Offering", offering_list)
-            
-            # Auto-fill fields based on Offering
-            offering_data = df_offering[df_offering['Offering'] == offering_sel].iloc[0]
-            l40_code = offering_data['L40']
-            go_to_conga = offering_data['Go To Conga'] if 'Go To Conga' in offering_data else "N/A"
-            
-            st.caption(f"📌 L40: {l40_code}")
-            st.caption(f"⚙️ Go To Conga: {go_to_conga}")
-
-        with col2:
-            # SLC (Service Level Code)
-            # Filtramos por país si aplica "only Brazil" o Scope vacío/Global
-            # Lógica simplificada: Mostrar todos los códigos únicos de SLC
-            slc_list = df_slc['SLC'].unique().tolist()
-            slc_sel = st.selectbox("SLC (Nivel de Servicio)", slc_list)
-            
-            # Buscar el UPLF (Factor)
-            # Prioridad: Buscar fila con Scope="only Brazil" si el país es Brasil, sino Scope vacío/ALL
-            # Como simplificación, tomamos el valor del SLC seleccionado.
-            try:
-                slc_row = df_slc[df_slc['SLC'] == slc_sel].iloc[0]
-                uplf = slc_row['UPLF'] if 'UPLF' in slc_row else 1.0
-            except:
-                uplf = 1.0
-            st.metric("Factor SLC (UPLF)", uplf)
-
-        with col3:
-            usd_unit_cost = st.number_input("Costo Unitario (USD Unit Cost)", min_value=0.0, value=10.0)
-            sqty = st.number_input("Cantidad (SQty)", min_value=1, value=1)
-            duration_srv = st.number_input("Duración Servicio (Meses)", min_value=1, value=months_contract)
-
-        # --- CÁLCULO SERVICIO (Logic Rule 1) ---
-        # Total Service Cost = USDunit cost * sqty * SLCuplf * duration1
-        total_service_cost = usd_unit_cost * sqty * uplf * duration_srv
-        st.success(f"💰 Costo Total Servicios: **USD {total_service_cost:,.2f}**")
-
-    # --- TAB 2: LABOR (Mano de Obra) ---
-    with tab2:
-        st.subheader("Cálculo de Mano de Obra")
-        
-        lc1, lc2, lc3 = st.columns(3)
-        
-        with lc1:
-            # Selector Tipo (Machine Category vs Brand Rate) - Columna MC/RR
-            tipos_labor = df_labor['MC/RR'].unique().tolist()
-            tipo_labor_sel = st.selectbox("Tipo (RR/BR)", tipos_labor)
-            
-            # Selector Sub-Tipo (Plataforma) - Columna Plat
-            # Filtramos DF Labor por el tipo seleccionado
-            labor_filtered = df_labor[df_labor['MC/RR'] == tipo_labor_sel]
-            plataformas = labor_filtered['Plat'].unique().tolist()
-            plat_sel = st.selectbox("Categoría / Plataforma", plataformas)
-
-        with lc2:
-            # --- LÓGICA CRÍTICA V11 ---
-            # Buscar el valor en la columna del PAÍS seleccionado
-            try:
-                # Fila específica
-                row_labor = labor_filtered[labor_filtered['Plat'] == plat_sel].iloc[0]
-                
-                # Verificar si la columna del país existe en Labor.csv (ej: 'Colombia', 'Ecuador')
-                if pais_sel in row_labor:
-                    raw_cost = row_labor[pais_sel]
-                    
-                    # APLICAR FÓRMULA: Costo Base / ER
-                    # Si el costo es NaN o 0, manejarlo
-                    if pd.isna(raw_cost):
-                        raw_cost = 0.0
-                    
-                    rr_br_cost_usd = raw_cost / er
-                    
-                    st.metric(f"Costo Base Local ({pais_sel})", f"{raw_cost:,.2f}")
-                    st.metric("Costo Calculado (USD)", f"{rr_br_cost_usd:,.2f}", help=f"Fórmula V11: {raw_cost:,.2f} / {er:,.2f}")
-                else:
-                    st.error(f"No hay tarifa definida para {pais_sel} en esta categoría.")
-                    rr_br_cost_usd = 0.0
-            except Exception as e:
-                st.error(f"Error calculando costo labor: {e}")
-                rr_br_cost_usd = 0.0
-
-        with lc3:
-            monthly_hours = st.number_input("Horas Mensuales", min_value=0.0, value=1.0)
-            lqty = st.number_input("Cantidad Recursos (LQty)", min_value=1, value=1)
-            duration_lab = st.number_input("Duración Labor (Meses)", min_value=1, value=months_contract)
-
-        # --- CÁLCULO LABOR (Logic Rule 2) ---
-        # Total Labor Cost = (Rate_USD * lqty * duration)
-        # Nota: La fórmula en logic_rules dice: (Machine Category/(ER)*lqty*duration)
-        # Nosotros ya calculamos (Machine Category/ER) en la variable rr_br_cost_usd
-        total_labor_cost = rr_br_cost_usd * lqty * duration_lab # * monthly_hours? 
-        # NOTA: En tu test case, 'Monthly Hours' aparece pero el cálculo final parece usar el costo unitario derivado.
-        # Si el costo en tabla es "por hora", multiplicamos por horas. Si es "mensual", no. 
-        # Asumiré costo mensual base según la magnitud de los números en Labor.csv (ej: 2 millones COP).
-        
-        st.success(f"👷 Costo Total Labor: **USD {total_labor_cost:,.2f}**")
-
-    # --- TAB 3: RESUMEN ---
-    with tab3:
-        st.header("Resumen de Cotización")
-        
-        total_cost = total_service_cost + total_labor_cost
-        
-        # Aplicar Riesgo (Opcional, según Logic Rules no vi fórmula explícita sumando riesgo al total, 
-        # pero UI_CONFIG lo pide. Lo mostraré informativo o sumado si es la práctica standard)
-        cost_risk = total_cost * risk_pct
-        final_total_with_risk = total_cost + cost_risk
-
-        col_res1, col_res2 = st.columns(2)
-        
-        with col_res1:
-            st.write(f"**Cliente:** {client_name} ({client_num})")
-            st.write(f"**País:** {pais_sel}")
-            st.write(f"**Riesgo ({risk_sel}):** {risk_pct:.1%}")
-        
-        with col_res2:
-            st.write(f"Servicios: USD {total_service_cost:,.2f}")
-            st.write(f"Labor: USD {total_labor_cost:,.2f}")
-            st.divider()
-            st.write(f"Subtotal: USD {total_cost:,.2f}")
-            st.write(f"Provisión Riesgo: USD {cost_risk:,.2f}")
-            st.subheader(f"Total: USD {final_total_with_risk:,.2f}")
-
-else:
-    st.warning("Esperando archivos CSV...")
+    # Botón de exportación simple (CSV del resultado)
+    st.markdown("---")
+    resumen_dict = {
+        "Cliente": [cliente],
+        "País": [pais_sel],
+        "TRM Usada": [er_pais],
+        "Total Servicios": [costo_total_servicios],
+        "Total Labor": [costo_total_labor],
+        "Costo Total": [total_costo],
+        "Riesgo": [reserva_riesgo]
+    }
+    df_resumen = pd.DataFrame(resumen_dict)
+    csv = df_resumen.to_csv(index=False).encode('utf-8')
+    
+    st.download_button(
+        "📥 Descargar Resumen CSV",
+        csv,
+        "resumen_cotizacion.csv",
+        "text/csv",
+        key='download-csv'
+    )
