@@ -82,7 +82,7 @@ with st.sidebar:
     st.info(f"Duración: {duration_months} Meses")
 
 # --- MAIN ---
-st.title("📊 LACOST V20: Vista Interactiva")
+st.title("📊 LACOST V20")
 
 # Pre-filtros
 scope_filter = "Brazil" if selected_country == "Brazil" else "no brazil"
@@ -219,3 +219,4 @@ with tab_res:
     st.divider()
     if st.button("💾 Guardar Proyecto"):
         st.balloons()
+
