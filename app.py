@@ -3,47 +3,12 @@ import pandas as pd
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
-# --- CONFIGURACIÓN DE PÁGINA (Layout Wide para aprovechar el ancho) ---
-st.set_page_config(page_title="LACOST V20 Compact", layout="wide")
-
-# --- ESTILOS CSS PERSONALIZADOS (MODO COMPACTO) ---
-st.markdown("""
-<style>
-    /* Reducir tamaño de fuente global */
-    html, body, [class*="css"] {
-        font-size: 14px;
-    }
-    
-    /* Reducir tamaño de Títulos */
-    h1 { font-size: 1.8rem !important; padding-bottom: 0.5rem !important; }
-    h2 { font-size: 1.4rem !important; padding-top: 0.5rem !important; padding-bottom: 0.2rem !important; }
-    h3 { font-size: 1.1rem !important; padding-top: 0.5rem !important; }
-    
-    /* Reducir altura y relleno de los Inputs (Selectbox, NumberInput, etc.) */
-    .stSelectbox div[data-baseweb="select"] > div,
-    .stTextInput div[data-baseweb="input"] > div,
-    .stNumberInput div[data-baseweb="input"] > div {
-        min-height: 35px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-    }
-    
-    /* Reducir espacio entre elementos */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-    }
-    
-    /* Ajustar tamaño de etiquetas de los inputs */
-    label p {
-        font-size: 0.9rem !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="LACOST V20 Sheets", layout="wide")
 
 # --- 1. CARGA DE DATOS ---
 def load_data():
-    # Tabla PAISES
+    # PAISES
     countries_data = {
         'Country': ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Peru', 'Mexico', 'Uruguay', 'Venezuela'],
         'Currency': ['ARS', 'BRL', 'CLP', 'COP', 'USD', 'PEN', 'MXN', 'UYU', 'VES'],
@@ -51,30 +16,29 @@ def load_data():
     }
     df_countries = pd.DataFrame(countries_data)
 
-    # Tabla OFFERINGS
+    # OFFERINGS (Solo lista simple para el dropdown)
     offerings_list = [
-        "IBM Hardware Resell for Server and Storage-Lenovo",
+        "IBM Hardware Resell - Server/Storage",
         "1-HWMA MVS SPT other Prod",
-        "IBM Support for Red Hat - Enterprise Linux Subscription",
-        "IBM Customized Support for Multivendor Hardware Services",
-        "IBM Customized Support for Software Services-Logo",
-        "System Technical Support Service-MVS-STSS",
-        "Relocation Services - External Vendor's Charge"
+        "IBM Support for Red Hat",
+        "IBM Customized Support - HW",
+        "IBM Customized Support - SW",
+        "System Technical Support Service",
+        "Relocation Services"
     ]
-    df_offerings = pd.DataFrame(offerings_list, columns=['Offering'])
 
-    # Tabla SLC
+    # SLC
     slc_data = [
-        {'Scope': 'no brazil', 'Desc': '24X74On-site Response time (M47)', 'UPLF': 1.5},
-        {'Scope': 'no brazil', 'Desc': '24X7SDOn-site arrival time (M19)', 'UPLF': 1.0},
+        {'Scope': 'no brazil', 'Desc': '24X74On-site Response (M47)', 'UPLF': 1.5},
+        {'Scope': 'no brazil', 'Desc': '24X7SDOn-site arrival (M19)', 'UPLF': 1.0},
         {'Scope': 'no brazil', 'Desc': '24X76Fix time (M2B)', 'UPLF': 1.6},
-        {'Scope': 'Brazil', 'Desc': '24X7SDOn-site arrival time (M19)', 'UPLF': 1.0},
+        {'Scope': 'Brazil', 'Desc': '24X7SDOn-site arrival (M19)', 'UPLF': 1.0},
         {'Scope': 'Brazil', 'Desc': 'NStd5x9', 'UPLF': 1.0},
         {'Scope': 'Brazil', 'Desc': 'NStdSBD7x24 (1.278)', 'UPLF': 1.278},
     ]
     df_slc = pd.DataFrame(slc_data)
 
-    # Tabla LABOR
+    # LABOR
     labor_data = [
         {'Type': 'Machine Category', 'Item': 'System Z (Cat A)', 'Argentina': 304504.2, 'Colombia': 2054058.99, 'Ecuador': 991.20, 'Brazil': 2803.85},
         {'Type': 'Machine Category', 'Item': 'Power HE (Cat C)', 'Argentina': 194856.48, 'Colombia': 540008.96, 'Ecuador': 340.52, 'Brazil': 1516.61},
@@ -82,104 +46,155 @@ def load_data():
     ]
     df_labor = pd.DataFrame(labor_data)
     
-    return df_countries, df_offerings, df_slc, df_labor
+    return df_countries, offerings_list, df_slc, df_labor
 
-df_countries, df_offerings, df_slc, df_labor = load_data()
+df_countries, offerings_list, df_slc, df_labor = load_data()
 
-# ==========================================
-# BARRA LATERAL (SIDEBAR)
-# ==========================================
+# --- SIDEBAR: CONTEXTO GLOBAL ---
 with st.sidebar:
-    st.header("⚙️ Config Global")
+    st.header("1. Configuración")
     
     selected_country = st.selectbox("País", df_countries['Country'])
     country_row = df_countries[df_countries['Country'] == selected_country].iloc[0]
     
     if selected_country == "Ecuador":
         er_calc = 1.0
-        currency_display = "USD"
+        curr = "USD"
     else:
         er_calc = country_row['ER']
-        currency_display = country_row['Currency']
+        curr = country_row['Currency']
 
-    col_kpi1, col_kpi2 = st.columns(2)
-    col_kpi1.metric("Moneda", currency_display)
-    col_kpi2.metric("Tasa (E/R)", f"{er_calc:,.2f}")
+    col1, col2 = st.columns(2)
+    col1.metric("Moneda", curr)
+    col2.metric("Tasa", f"{er_calc:,.2f}")
     
-    st.markdown("---")
+    st.divider()
     
-    st.subheader("Contrato")
     start_date = st.date_input("Inicio", date.today())
     end_date = st.date_input("Fin", date.today() + relativedelta(months=12))
     
     diff = relativedelta(end_date, start_date)
     duration_months = diff.years * 12 + diff.months + (1 if diff.days > 0 else 0)
-    st.caption(f"Duración: **{duration_months} Meses**")
+    st.info(f"Duración: {duration_months} Meses")
 
-# ==========================================
-# CUERPO PRINCIPAL
-# ==========================================
-st.subheader("💸 LACOST V20 - Calculadora Cloud")
+# --- MAIN ---
+st.title("📊 LACOST V20: Vista de Hoja de Cálculo")
 
-# --- SECCIÓN 2: SERVICIOS ---
-with st.expander("2. Input Costs - Services", expanded=True):
-    col_s1, col_s2 = st.columns([3, 1])
-    with col_s1:
-        offering = st.selectbox("Offering / Servicio", df_offerings['Offering'])
-    with col_s2:
-        qa_risk = st.selectbox("QA Risk", ["Low (0.02)", "Medium (0.05)", "High (0.08)"])
+# Filtros previos para configurar las tablas
+scope_filter = "Brazil" if selected_country == "Brazil" else "no brazil"
+filtered_slc = df_slc[df_slc['Scope'] == scope_filter]['Desc'].tolist()
+filtered_items = df_labor['Item'].unique().tolist()
 
-    col_s3, col_s4, col_s5 = st.columns([3, 1, 1])
-    with col_s3:
-        scope_filter = "Brazil" if selected_country == "Brazil" else "no brazil"
-        filtered_slc = df_slc[df_slc['Scope'] == scope_filter]
-        slc_selection = st.selectbox("SLC Profile", filtered_slc['Desc'])
-        slc_factor = filtered_slc[filtered_slc['Desc'] == slc_selection]['UPLF'].values[0] if not filtered_slc.empty else 1.0
-        st.caption(f"Factor: **{slc_factor}**")
-    with col_s4:
-        usd_unit_cost = st.number_input("USD Unit Cost", value=10.0, format="%.2f")
-    with col_s5:
-        sqty = st.number_input("Qty", min_value=1, value=1)
+# TABS PARA ORGANIZACIÓN
+tab_serv, tab_labor, tab_res = st.tabs(["📝 2. Servicios (Grid)", "👷 3. Labor (Grid)", "💰 4. Resultados Finales"])
 
-# --- SECCIÓN 3: LABOR ---
-with st.expander("3. Input Costs - Labor", expanded=True):
-    col_l1, col_l2 = st.columns([1, 3])
-    with col_l1:
-        labor_type = st.radio("Tarifa", df_labor['Type'].unique(), horizontal=False)
-    with col_l2:
-        items_avail = df_labor[df_labor['Type'] == labor_type]['Item'].unique()
-        labor_item = st.selectbox("Categoría / Item", items_avail)
+# === TAB 1: SERVICIOS ===
+with tab_serv:
+    st.markdown("### Ingreso de Servicios")
+    st.caption("Edita la tabla abajo. Agrega filas con el botón '+'.")
+    
+    # Estructura inicial de la "Hoja"
+    if 'df_services_input' not in st.session_state:
+        st.session_state.df_services_input = pd.DataFrame(
+            [{"Offering": "IBM Customized Support - HW", "QA Risk": "Low (0.02)", "SLC Profile": filtered_slc[0], "USD Unit Cost": 10.0, "Qty": 1}]
+        )
 
-    col_l3, col_l4, col_l5 = st.columns(3)
-    with col_l3:
-        lqty = st.number_input("Horas/Meses", min_value=1, value=1)
-    with col_l4:
-        try:
-            if selected_country in df_labor.columns:
-                raw_cost = df_labor[(df_labor['Type'] == labor_type) & (df_labor['Item'] == labor_item)][selected_country].values[0]
-                if pd.isna(raw_cost): raw_cost = 0
-                final_labor_unit_cost = raw_cost / er_calc
-            else:
-                raw_cost = 0; final_labor_unit_cost = 0
-        except:
-            raw_cost = 0; final_labor_unit_cost = 0
-        st.metric("Local", f"{raw_cost:,.0f}")
-    with col_l5:
-        st.metric("Unit USD", f"${final_labor_unit_cost:,.2f}")
+    # El Editor (La "Hoja de Cálculo")
+    edited_services = st.data_editor(
+        st.session_state.df_services_input,
+        num_rows="dynamic",
+        column_config={
+            "Offering": st.column_config.SelectboxColumn("Offering", options=offerings_list, width="medium"),
+            "QA Risk": st.column_config.SelectboxColumn("QA Risk", options=["Low (0.02)", "Medium (0.05)", "High (0.08)"], width="small"),
+            "SLC Profile": st.column_config.SelectboxColumn("SLC", options=filtered_slc, width="medium"),
+            "USD Unit Cost": st.column_config.NumberColumn("Costo Unit (USD)", format="$%.2f"),
+            "Qty": st.column_config.NumberColumn("Cantidad", min_value=1, step=1)
+        },
+        use_container_width=True,
+        hide_index=True
+    )
 
-# --- RESULTADOS ---
-total_service_cost = usd_unit_cost * sqty * slc_factor * duration_months
-total_labor_cost = final_labor_unit_cost * lqty
-total_grand = total_service_cost + total_labor_cost
+# === TAB 2: LABOR ===
+with tab_labor:
+    st.markdown("### Ingreso de Recursos (Labor)")
+    
+    if 'df_labor_input' not in st.session_state:
+        st.session_state.df_labor_input = pd.DataFrame(
+            [{"Item": filtered_items[0], "Qty": 1}]
+        )
 
-st.markdown("---")
-res_col1, res_col2, res_col3, res_col4 = st.columns([2, 2, 2, 2])
-with res_col1:
-    st.info(f"Servicios: **${total_service_cost:,.2f}**")
-with res_col2:
-    st.warning(f"Labor: **${total_labor_cost:,.2f}**")
-with res_col3:
-    st.error(f"TOTAL: **${total_grand:,.2f}**")
-with res_col4:
-    if st.button("Exportar"):
-        st.toast("Archivo generado!")
+    edited_labor = st.data_editor(
+        st.session_state.df_labor_input,
+        num_rows="dynamic",
+        column_config={
+            "Item": st.column_config.SelectboxColumn("Recurso / Rol", options=filtered_items, width="large"),
+            "Qty": st.column_config.NumberColumn("Horas/Meses", min_value=1, step=1)
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+
+# === CÁLCULOS (LÓGICA PANDAS) ===
+
+# 1. Calcular Servicios
+# Mapear los valores de SLC y Risk al dataframe editado
+# (Creamos copias para no romper la visual)
+calc_serv = edited_services.copy()
+
+# Funciones auxiliares para buscar valores
+def get_slc_factor(desc):
+    try:
+        return df_slc[df_slc['Desc'] == desc]['UPLF'].values[0]
+    except:
+        return 1.0
+
+# Aplicar calculos fila por fila
+calc_serv['SLC Factor'] = calc_serv['SLC Profile'].apply(get_slc_factor)
+calc_serv['Total Linea'] = calc_serv['USD Unit Cost'] * calc_serv['Qty'] * calc_serv['SLC Factor'] * duration_months
+
+# 2. Calcular Labor
+calc_labor = edited_labor.copy()
+
+def get_labor_cost(item):
+    try:
+        # Busca costo en moneda local
+        if selected_country in df_labor.columns:
+            val = df_labor[df_labor['Item'] == item][selected_country].values[0]
+            if pd.isna(val): return 0.0
+            return val / er_calc # Convertir a USD
+        return 0.0
+    except:
+        return 0.0
+
+calc_labor['USD Unit Cost'] = calc_labor['Item'].apply(get_labor_cost)
+calc_labor['Total Linea'] = calc_labor['USD Unit Cost'] * calc_labor['Qty']
+
+# Totales Generales
+total_servicios = calc_serv['Total Linea'].sum()
+total_labor = calc_labor['Total Linea'].sum()
+gran_total = total_servicios + total_labor
+
+# === TAB 3: RESULTADOS ===
+with tab_res:
+    st.subheader("Resumen Financiero")
+    
+    # Métricas grandes
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Servicios", f"${total_servicios:,.2f}")
+    c2.metric("Total Labor", f"${total_labor:,.2f}")
+    c3.metric("GRAN TOTAL (USD)", f"${gran_total:,.2f}", delta="Proyecto Completo")
+    
+    st.divider()
+    
+    # Mostrar detalle calculado
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        st.write("**Detalle Servicios (Calculado):**")
+        st.dataframe(calc_serv[['Offering', 'SLC Factor', 'Total Linea']], hide_index=True)
+    
+    with col_d2:
+        st.write("**Detalle Labor (Calculado):**")
+        st.dataframe(calc_labor[['Item', 'USD Unit Cost', 'Total Linea']], hide_index=True)
+
+    if st.button("📥 Descargar Cotización Completa"):
+        st.toast("Generando Excel/JSON...")
