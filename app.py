@@ -8,19 +8,20 @@ from dateutil.relativedelta import relativedelta
 # ==========================================
 # CONFIGURACIÓN
 # ==========================================
-st.set_page_config(page_title="LAcostWeb V11", layout="wide")
+st.set_page_config(page_title="LAcostWeb V11 RealTime", layout="wide")
 
 st.markdown("""
 <style>
-    /* Estilo Compacto 8pt (11px) */
+    /* Fuente compacta 11px */
     html, body, [class*="css"], .stTextInput, .stNumberInput, .stSelectbox, .stDateInput {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         font-size: 11px !important;
     }
     h1 { font-size: 16px !important; padding: 5px 0 !important; }
     h2 { font-size: 14px !important; padding: 2px 0 !important; border-bottom: 1px solid #ddd; }
+    h3 { font-size: 12px !important; font-weight: bold; margin-top: 10px; }
     
-    /* Inputs */
+    /* Inputs compactos */
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"], .stDateInput input {
         min-height: 24px !important;
         height: 24px !important;
@@ -28,21 +29,21 @@ st.markdown("""
     label { font-size: 10px !important; margin-bottom: 0px !important; }
     
     /* Layout */
-    .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; }
+    .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
     div[data-testid="column"] { padding: 0px 4px !important; }
     
-    /* Totales Flotantes o Fijos al final */
-    .total-box {
+    /* Totales destacados */
+    div[data-testid="metric-container"] {
         background-color: #f0f2f6;
-        padding: 10px;
         border-radius: 5px;
-        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #ccc;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. MOTOR DE DATOS
+# 1. DATOS V11
 # ==========================================
 @st.cache_data
 def load_data():
@@ -140,8 +141,6 @@ Power LE,162675.24,742.22,486361.26,379581.99,283.76,312.87,3860.85,10986.01,368
 System X HE,66943.8,0,101090.22,108029.93,153.10,211.05,1054.2,8828.82,112860.77
 B7 (Senior),40166.28,186.82,54081.72,126000.0,79.19,216.45,673.05,3581.26,20998.96"""
     data['Labor'] = pd.read_csv(io.StringIO(labor))
-
-    # RISK
     data['Risk'] = pd.read_csv(io.StringIO("Level,Percentage\nLow,0.02\nMedium,0.05\nHigh,0.08"))
     
     return data
@@ -149,9 +148,8 @@ B7 (Senior),40166.28,186.82,54081.72,126000.0,79.19,216.45,673.05,3581.26,20998.
 DB = load_data()
 
 # ==========================================
-# 2. LÓGICA
+# 2. FUNCIONES LÓGICAS
 # ==========================================
-
 def get_country_info(country):
     row = DB['Countries'][DB['Countries']['Country'] == country]
     if not row.empty:
@@ -170,75 +168,53 @@ def get_options(source, country_scope):
     elif source == "Sheet Labor": return DB['Labor']['Item'].unique().tolist()
     return []
 
-def calculate_months_widget(start_lbl, end_lbl):
-    """
-    Busca el valor DIRECTAMENTE en el session_state del WIDGET.
-    Clave del widget = Label + "_wdg"
-    """
-    try:
-        k_start = start_lbl + "_wdg"
-        k_end = end_lbl + "_wdg"
-        
-        # Verificar si existen en el estado actual
-        s = st.session_state.get(k_start)
-        e = st.session_state.get(k_end)
-        
-        if s and e and e >= s:
-            d = relativedelta(e, s)
-            return d.years * 12 + d.months + (1 if d.days > 0 else 0)
-    except:
-        pass
-    return 0
+def calculate_months_direct(start_val, end_val):
+    """Calcula meses recibiendo las fechas directamente"""
+    if start_val and end_val and end_val >= start_val:
+        d = relativedelta(end_val, start_val)
+        return float(d.years * 12 + d.months + (1 if d.days > 0 else 0))
+    return 0.0
 
 # ==========================================
-# 3. INTERFAZ
+# 3. INTERFAZ Y ESTADO
 # ==========================================
-
 if 'inputs' not in st.session_state: st.session_state.inputs = {}
 if 'country' not in st.session_state: st.session_state.country = "Colombia"
 if 'consecutivo' not in st.session_state: 
     st.session_state.consecutivo = f"LAcostWeb-{random.randint(1001,9999)}"
 
-# SIDEBAR: TITULO + CONFIGURACIÓN
+# SIDEBAR TITULO
 st.sidebar.markdown(f"### {st.session_state.consecutivo}")
-
 curr_er, curr_scope = get_country_info(st.session_state.country)
 
-# Separar secciones
+# PREPARAR ESTRUCTURA
 ui_df = DB['UI']
 sections_main = ui_df[~ui_df['Section'].str.startswith('4.')] # Todo menos Totales
-sections_total = ui_df[ui_df['Section'].str.startswith('4.')] # Solo Totales
 
+# Crear Tabs Explícitos para asegurar que Labor existe
+tabs_main = st.tabs(["1. Servicios", "2. Labor"])
+tab_servicios = tabs_main[0]
+tab_labor = tabs_main[1]
+
+# RENDERIZADO WIDGETS
 grouped = sections_main.groupby('Section', sort=False)
 
-# Tabs
-main_container = st.container()
-tab_names = []
-for name in grouped.groups.keys():
-    if "-Tab" in str(name):
-        t_name = str(name).split('-')[1]
-        if t_name not in tab_names: tab_names.append(t_name)
-
-tabs_obj = {}
-if tab_names:
-    t_instances = st.tabs([t.replace("Tab1", "1. Servicios").replace("Tab2", "2. Labor") for t in tab_names])
-    for i, tn in enumerate(tab_names): tabs_obj[tn] = t_instances[i]
-
-# RENDER LOOP PRINCIPAL
 for section, group in grouped:
     sec_str = str(section).strip()
     
-    # Ubicación
+    # Lógica de asignación de contenedor
     if "-slidebar" in sec_str:
         cont = st.sidebar
         title = sec_str.split('-')[0].split('.')[1].strip()
-    elif "-Tab" in sec_str:
-        t_key = [t for t in tab_names if t in sec_str][0]
-        cont = tabs_obj[t_key]
+    elif "Servicios" in sec_str: # Mapeo explícito
+        cont = tab_servicios
+        title = ""
+    elif "Labor" in sec_str: # Mapeo explícito
+        cont = tab_labor
         title = ""
     else:
-        cont = main_container
-        title = sec_str.split('-')[0].split('.')[1].strip() if '.' in sec_str else sec_str
+        cont = st.container()
+        title = sec_str
 
     with cont:
         if title: st.subheader(title)
@@ -247,21 +223,17 @@ for section, group in grouped:
             lbl = row['Field Label'].strip()
             dtype = row['Data Type']
             src = row['Source / Options']
-            
-            # ID único del widget
-            widget_key = lbl + "_wdg"
+            widget_key = lbl + "_wdg" # Key único
             
             # --- DROPDOWN ---
             if dtype == 'Dropdown':
                 opts = get_options(src, curr_scope)
                 idx_sel = 0
-                
-                # Restaurar valor previo
-                curr_val = st.session_state.inputs.get(lbl)
-                if curr_val in opts: idx_sel = opts.index(curr_val)
+                if lbl in st.session_state.inputs and st.session_state.inputs[lbl] in opts:
+                    idx_sel = opts.index(st.session_state.inputs[lbl])
                 
                 val = st.selectbox(lbl, opts, index=idx_sel, key=widget_key)
-                st.session_state.inputs[lbl] = val # Guardar
+                st.session_state.inputs[lbl] = val # Guardar inmediatamente
                 
                 if lbl == 'Country':
                     st.session_state.country = val
@@ -269,35 +241,35 @@ for section, group in grouped:
 
             # --- FECHAS ---
             elif dtype == 'Date':
-                # Default 2026
                 default_d = date(2026, 1, 1)
                 if any(x in lbl for x in ["End", "DE", "Fin"]): default_d = date(2026, 12, 31)
                 
-                # Si no hay valor en inputs, usar default. Si hay, usar guardado.
-                val_init = st.session_state.inputs.get(lbl, default_d)
-                
-                val = st.date_input(lbl, value=val_init, key=widget_key)
-                st.session_state.inputs[lbl] = val
+                # Recuperar valor actual si existe
+                if lbl in st.session_state.inputs:
+                    current_d = st.session_state.inputs[lbl]
+                else:
+                    current_d = default_d
+                    st.session_state.inputs[lbl] = default_d # Init default
+
+                val = st.date_input(lbl, value=current_d, key=widget_key)
+                st.session_state.inputs[lbl] = val # Actualizar
 
             # --- RADIO ---
             elif dtype == 'Radio':
                 opts = str(src).split(',')
-                # Caso especial Currency para no mostrar Sheet Countries
                 if lbl == "Currency": opts = ["USD", "Local"]
                 
-                # Restaurar
                 idx_sel = 0
-                curr_val = st.session_state.inputs.get(lbl)
-                if curr_val in opts: idx_sel = opts.index(curr_val)
-                
+                if lbl in st.session_state.inputs and st.session_state.inputs[lbl] in opts:
+                    idx_sel = opts.index(st.session_state.inputs[lbl])
+
                 val = st.radio(lbl, opts, index=idx_sel, horizontal=True, key=widget_key)
                 st.session_state.inputs[lbl] = val
 
-            # --- TEXT ---
+            # --- TEXTO ---
             elif dtype in ['text', 'string(20)']:
                 val_disp = st.session_state.inputs.get(lbl, "")
-                
-                # Auto-Fill Offering
+                # Auto-fill lógica
                 if lbl in ['L40', 'Go To Conga']:
                     off = st.session_state.inputs.get('Offering')
                     if off:
@@ -308,20 +280,20 @@ for section, group in grouped:
                 st.text_input(lbl, value=val_disp, disabled=(lbl in ['L40','Go To Conga']), key=widget_key)
                 st.session_state.inputs[lbl] = val_disp
 
-            # --- NUMBERS / CALCULATED ---
+            # --- NUMEROS & CALCULADOS (LÓGICA TIEMPO REAL) ---
             elif dtype in ['Number', 'Number(int)']:
                 val_num = 0.0
                 is_disabled = False
                 
-                # --- CALCULOS EN VIVO ---
+                # Lógica de cálculo inmediata usando session_state.inputs actualizados
                 if "Contract Period" in lbl:
-                    val_num = calculate_months_widget('Contract Start Date', 'Contract End Date')
+                    val_num = calculate_months_direct(st.session_state.inputs.get('Contract Start Date'), st.session_state.inputs.get('Contract End Date'))
                     is_disabled = True
                 elif "Duration1" in lbl:
-                    val_num = calculate_months_widget('DI1', 'DE1')
+                    val_num = calculate_months_direct(st.session_state.inputs.get('DI1'), st.session_state.inputs.get('DE1'))
                     is_disabled = True
                 elif "Duration2" in lbl:
-                    val_num = calculate_months_widget('DI2', 'DE2')
+                    val_num = calculate_months_direct(st.session_state.inputs.get('DI2'), st.session_state.inputs.get('DE2'))
                     is_disabled = True
                 elif lbl == "RR/BR Cost":
                     l_item = st.session_state.inputs.get('RR/BR')
@@ -330,58 +302,51 @@ for section, group in grouped:
                         if not r.empty:
                             val_num = float(r[st.session_state.country].values[0]) / curr_er
                     is_disabled = True
+                elif "Total" in lbl:
+                    # Estos se muestran abajo, ignorar aquí
+                    continue 
                 else:
-                    # Input normal
+                    # User Input (Unit Cost, SQty, LQty)
                     val_num = st.session_state.inputs.get(lbl, 0.0)
 
                 st.number_input(lbl, value=float(val_num), disabled=is_disabled, key=widget_key)
                 st.session_state.inputs[lbl] = val_num
 
 # ==========================================
-# 4. TOTALES (AL FINAL)
+# 4. MOTOR DE CÁLCULO EN TIEMPO REAL
+# ==========================================
+
+inp = st.session_state.inputs
+
+# 1. SERVICIOS
+# Recuperar valores actualizados
+usd_cost = inp.get('USD Unit Cost', 0.0)
+sqty = inp.get('SQty', 0.0)
+dur1 = inp.get('Duration1', 0.0)
+slc = inp.get('SLC')
+
+uplf = 1.0
+if slc:
+    r = DB['SLC'][DB['SLC']['SLC'] == slc]
+    if not r.empty: uplf = float(r['UPLF'].values[0])
+    
+tot_svc = usd_cost * sqty * uplf * dur1
+
+# 2. LABOR
+lab_cost_usd = inp.get('RR/BR Cost', 0.0)
+l_hours = inp.get('Monthly Hours', 0.0)
+dur2 = inp.get('Duration2', 0.0)
+
+tot_lab = lab_cost_usd * l_hours * dur2
+grand_total = tot_svc + tot_lab
+
+# ==========================================
+# 5. RESULTADOS (FOOTER)
 # ==========================================
 st.markdown("---")
-st.subheader("4. Resumen Total")
+st.subheader("4. Resumen Online")
 
-c_tot_1, c_tot_2, c_tot_3 = st.columns(3)
-
-# Botón Calcular
-if st.button("CALCULAR COTIZACIÓN", type="primary", use_container_width=True):
-    inp = st.session_state.inputs
-    
-    # Servicios
-    cost = inp.get('USD Unit Cost', 0.0)
-    qty = inp.get('SQty', 0.0)
-    dur1 = inp.get('Duration1', 0.0)
-    slc = inp.get('SLC')
-    
-    uplf = 1.0
-    if slc:
-        r = DB['SLC'][DB['SLC']['SLC'] == slc]
-        if not r.empty: uplf = float(r['UPLF'].values[0])
-            
-    tot_svc = cost * qty * uplf * dur1
-    
-    # Labor
-    l_cost_usd = inp.get('RR/BR Cost', 0.0)
-    l_hours = inp.get('Monthly Hours', 0.0)
-    dur2 = inp.get('Duration2', 0.0)
-    
-    tot_lab = l_cost_usd * l_hours * dur2
-    grand = tot_svc + tot_lab
-    
-    # Guardar Totales
-    st.session_state.inputs['Total Service Cost'] = tot_svc
-    st.session_state.inputs['Total Labor Cost'] = tot_lab
-    st.session_state.inputs['Total Cost'] = grand
-    
-    st.success("Calculado exitosamente.")
-    st.rerun()
-
-# Mostrar Totales (Solo Lectura)
-with c_tot_1:
-    st.metric("Total Servicios", f"${st.session_state.inputs.get('Total Service Cost',0.0):,.2f}")
-with c_tot_2:
-    st.metric("Total Labor", f"${st.session_state.inputs.get('Total Labor Cost',0.0):,.2f}")
-with c_tot_3:
-    st.metric("TOTAL GENERAL", f"${st.session_state.inputs.get('Total Cost',0.0):,.2f}")
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Servicios", f"${tot_svc:,.2f}", help="Cost * Qty * SLC * Duration")
+c2.metric("Total Labor", f"${tot_lab:,.2f}", help="Unit Cost * Hours * Duration")
+c3.metric("GRAN TOTAL", f"${grand_total:,.2f}")
